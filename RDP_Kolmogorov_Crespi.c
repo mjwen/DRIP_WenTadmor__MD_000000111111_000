@@ -47,6 +47,7 @@
 /******************************************************************************
  * Below are the definitions and values of all Model parameters
  *******************************************************************************/
+#define HALF 0.5
 #define DIM 3       /* dimensionality of space */
 #define SPEC1 1     /* internal species code */
 #define SPEC2 2     /* internal species code */
@@ -64,8 +65,8 @@ static int compute(void* km);
 /* local function prototypes */
 static void calc_phi_repulsive(const double C0, const double C2, const double C4,
     const double C, const double delta, const double lambda, const double z0,
-    const double r, const double rij[DIM], const double normali[DIM],
-    const double normalj[DIM], double *const phi);
+    const double r, const double rij[DIM], const double ni[DIM], const double nj[DIM],
+    double *const phi);
 
 static void calc_phi_attractive(const double A, const double z0, const double r,
     double *const phi);
@@ -77,6 +78,21 @@ static double get_rho_sq(const double r, const double rvec[DIM], const double n[
 
 static double get_td(const double C0, const double C2, const double C4,
     const double rho_sq, const double delta);
+
+static void dtd_drho(const double C0, const double C2, const double C4,
+    const double delta, const double rho_sq,  double *const td, double *const dtd);
+
+static void get_drhoij(const double rij[DIM], const double ni[DIM],
+    double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
+    double dni_drn2[DIM][DIM], double dni_drn3[DIM][DIM],
+    double drho_dri[DIM], double drho_drj[DIM],
+    double drho_drn1[DIM], double drho_drn2[DIM],
+    double drho_drn3[DIM]);
+
+/* helper */
+double dot(const double x[DIM], const double y[DIM]);
+
+static void mat_dot_vec(double X[DIM][DIM], const double y[DIM], double z[DIM]);
 
 static void cross(const double x[DIM], const double y[DIM], double rslt[DIM]);
 
@@ -115,7 +131,7 @@ struct model_buffer {
 /* the repulsive part due to collapse of electron clouds */
 static void calc_phi_repulsive(const double C0, const double C2, const double C4,
     const double C, const double delta, const double lambda, const double z0,
-    const double r, const double rij[DIM],const double ni[DIM], const double nj[DIM],
+    const double r, const double rij[DIM], const double ni[DIM], const double nj[DIM],
     double *const phi)
 {
   double rhoij_sq, rhoji_sq;
@@ -124,11 +140,95 @@ static void calc_phi_repulsive(const double C0, const double C2, const double C4
   rhoij_sq = get_rho_sq(r, rij, ni);
   rhoji_sq = get_rho_sq(r, rij, nj);
 
-  tdij = get_td(C0, C2, C4, rhoij_sq, delta);
-  tdji = get_td(C0, C2, C4, rhoji_sq, delta);
+  tdij = get_td(C0, C2, C4, delta, rhoij_sq);
+  tdji = get_td(C0, C2, C4, delta, rhoji_sq);
 
   *phi = exp(-lambda*(r-z0)) * (C+tdij+tdji);
 }
+
+
+static void calc_phi_forces_repulsive(const double C0, const double C2, const double C4,
+    const double C, const double delta, const double lambda, const double z0,
+    const double r, const double rij[DIM], const int i, double ni[DIM],
+    const int neighi1, const int neighi2, const int neighi3,
+    double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
+    double dni_drn2[DIM][DIM], double dni_drn3[DIM][DIM],
+    const int j, double nj[DIM], const int neighj1, const int neighj2, const int neighj3,
+    double dnj_drj[DIM][DIM], double dnj_drn1[DIM][DIM],
+    double dnj_drn2[DIM][DIM], double dnj_drn3[DIM][DIM],
+    double *const phi, double *const forces)
+{
+  double V1;
+  double V2;
+  double rhoij_sq, rhoji_sq;
+  double tdij, tdji;
+  double dtdij, dtdji;
+  double drhoij_dri[DIM];
+  double drhoij_drj[DIM];
+  double drhoij_drn1[DIM];
+  double drhoij_drn2[DIM];
+  double drhoij_drn3[DIM];
+  double drhoji_dri[DIM];
+  double drhoji_drj[DIM];
+  double drhoji_drn1[DIM];
+  double drhoji_drn2[DIM];
+  double drhoji_drn3[DIM];
+  double rji[DIM];
+  double tmp;
+  int k;
+
+  /* rji */
+  for (k=0; k<DIM; k++) {
+    rji[k] = -rij[k];
+  }
+
+  rhoij_sq = get_rho_sq(r, rij, ni);
+  rhoji_sq = get_rho_sq(r, rji, nj);
+
+  /* derivartive of transverse decay function f(rho) w.r.t rho */
+  dtd_drho(C0, C2, C4, delta, rhoij_sq, &tdij, &dtdij);
+  dtd_drho(C0, C2, C4, delta, rhoji_sq, &tdji, &dtdji);
+
+  /* derivative of rho w.r.t coords of atoms i, j, and the nearests 3 neighs of i */
+  get_drhoij(rij, ni, dni_dri, dni_drn1, dni_drn2, dni_drn3, drhoij_dri, drhoij_drj,
+      drhoij_drn1, drhoij_drn2, drhoij_drn3);
+  get_drhoij(rji, nj, dnj_drj, dnj_drn1, dnj_drn2, dnj_drn3, drhoji_drj, drhoji_dri,
+      drhoji_drn1, drhoji_drn2, drhoji_drn3);
+
+
+  /* energy */
+  V1 = exp(-lambda*(r-z0));
+  V2 = C + tdij + tdji;
+  *phi = V1*V2;
+
+  /* forces */
+  for (k=0; k<DIM; k++) {
+
+    /* derivative of V1 */
+    tmp = HALF*lambda * (*phi) * rij[k]/r;
+    forces[i*DIM+k] -= tmp;
+    forces[j*DIM+k] += tmp;
+
+    /* derivative of V2 contribute to atoms i, j*/
+    forces[i*DIM+k] -= HALF * V1 * (dtdij*drhoij_dri[k] + dtdji*drhoji_dri[k]);
+    forces[j*DIM+k] += HALF * V1 * (dtdij*drhoij_drj[k] + dtdji*drhoji_drj[k]);
+
+    /* derivative of V2 contribute to neighs of atoms i*/
+    forces[neighi1*DIM+k] -= HALF * V1 * dtdij*drhoij_drn1[k];
+    forces[neighi2*DIM+k] -= HALF * V1 * dtdij*drhoij_drn2[k];
+    forces[neighi3*DIM+k] -= HALF * V1 * dtdij*drhoij_drn3[k];
+
+
+    /* derivative of V2 contribute to neighs of atomi j*/
+    forces[neighj1*DIM+k] -= HALF * V1 * dtdji*drhoji_drn1[k];
+    forces[neighj2*DIM+k] -= HALF * V1 * dtdji*drhoji_drn2[k];
+    forces[neighj3*DIM+k] -= HALF * V1 * dtdji*drhoji_drn3[k];
+ }
+
+}
+
+
+
 
 /* the r^{-6} attractive part */
 static void calc_phi_attractive(const double A, const double z0, const double r,
@@ -138,28 +238,172 @@ static void calc_phi_attractive(const double A, const double z0, const double r,
   *phi = -A/(roz0_sq*roz0_sq*roz0_sq);
 }
 
-/* compute normal */
-/* the direction of the normal does not matter */
-static void get_normal(const double Rvec1[DIM], const double Rvec2[DIM],
-    const double Rvec3[DIM], double normal[DIM])
+
+/* the r^{-6} attractive part */
+static void calc_phi_forces_attractive(const double A, const double z0, const double r,
+    double const *const rij, const int i, const int j, double *const phi,
+    double *const forces)
 {
-  /* local variables */
-  double mag_normal;
-  int i;
+  int k;
+  double tmp;
 
-  cross(Rvec1, Rvec2, normal);
+  /* energy */
+  double roz0_sq = r*r/(z0*z0);
+  *phi = -A/(roz0_sq*roz0_sq*roz0_sq);
 
-  mag_normal=0.0;
-  for (i=0; i<DIM; i++) {
-    mag_normal += normal[i]*normal[i];
-  }
-  mag_normal = sqrt(mag_normal);
-
-  for (i=0; i<DIM; i++) {
-    normal[i] /= mag_normal;
+  /* forces */
+  for (k=0; k<DIM; k++) {
+    tmp = HALF*6*(*phi)/r * rij[k]/r;
+    forces[i*DIM+k] -= tmp;
+    forces[j*DIM+k] += tmp;
   }
 
 }
+
+
+
+
+/* compute normal */
+/* the sign of normal does not matter when considering energy, it also does not matter
+   for forces, since the direction will be automatically corrected to point to the
+   the other layer */
+static void get_normal(const double rik[DIM], const double ril[DIM],
+    const double rim[DIM], double n[DIM])
+{
+/* local variables */
+  double x[DIM];
+  double y[DIM];
+  double p[DIM];
+  double q;
+  int i;
+
+  /* get rkl and rkm */
+  for (i=0; i<DIM; i++) {
+    x[i] = ril[i] - rik[i];
+    y[i] = rim[i] - rik[i];
+  }
+
+  /* cross product */
+  cross(x, y, p);
+  q = sqrt(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]);
+
+  /* normal */
+  n[0] = p[0]/q;
+  n[1] = p[1]/q;
+  n[2] = p[2]/q;
+}
+
+/* compute the derivative of normal ni w.r.t atom ri, and its 3 nearest neighs k, l, m.*/
+static void get_dni(const double rik[DIM], const double ril[DIM],
+    const double rim[DIM], double dn_dri[DIM][DIM], double dn_drk[DIM][DIM],
+    double dn_drl[DIM][DIM], double dn_drm[DIM][DIM])
+{
+  /* local variables */
+  double x[DIM];
+  double y[DIM];
+  double p[DIM];
+  double q;
+  double q_cubic;
+  double d_invq_d_x0;
+  double d_invq_d_x1;
+  double d_invq_d_x2;
+  double d_invq_d_y0;
+  double d_invq_d_y1;
+  double d_invq_d_y2;
+  int i,j;
+
+  /* get rkl and rkm */
+  for (i=0; i<DIM; i++) {
+    x[i] = ril[i] - rik[i];
+    y[i] = rim[i] - rik[i];
+  }
+
+
+/* DELETE
+  x[0] = 1.0;
+  x[1] = 2.0;
+  x[2] = 1.0;
+
+  y[0] = 2.0;
+  y[1] = -1.0;
+  y[2] = 3.0;
+*/
+
+  /* cross product */
+  cross(x, y, p);
+  q = sqrt(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]);
+
+  /* compute derivatives */
+  /* derivative of inverse q (i.e. 1/q) w.r.t x and y*/
+  q_cubic = q*q*q;
+  d_invq_d_x0 = (           + p[1]*y[2] - p[2]*y[1])/q_cubic;
+  d_invq_d_x1 = (-p[0]*y[2]             + p[2]*y[0])/q_cubic;
+  d_invq_d_x2 = ( p[0]*y[1] - p[1]*y[0]            )/q_cubic;
+  d_invq_d_y0 = (           - p[1]*x[2] + p[2]*x[1])/q_cubic;
+  d_invq_d_y1 = ( p[0]*x[2]             - p[2]*x[0])/q_cubic;
+  d_invq_d_y2 = (-p[0]*x[1] + p[1]*x[0]            )/q_cubic;
+
+  /*dn/dri transposed */
+  dn_dri[0][0] = 0.0;
+  dn_dri[0][1] = 0.0;
+  dn_dri[0][2] = 0.0;
+  dn_dri[1][0] = 0.0;
+  dn_dri[1][1] = 0.0;
+  dn_dri[1][2] = 0.0;
+  dn_dri[2][0] = 0.0;
+  dn_dri[2][1] = 0.0;
+  dn_dri[2][2] = 0.0;
+
+
+  /* dn/drl transposed */
+  dn_drl[0][0] =           p[0]*d_invq_d_x0;
+  dn_drl[0][1] = -y[2]/q + p[1]*d_invq_d_x0;
+  dn_drl[0][2] =  y[1]/q + p[2]*d_invq_d_x0;
+
+  dn_drl[1][0] =  y[2]/q + p[0]*d_invq_d_x1;
+  dn_drl[1][1] =           p[1]*d_invq_d_x1;
+  dn_drl[1][2] = -y[0]/q + p[2]*d_invq_d_x1;
+
+  dn_drl[2][0] = -y[1]/q + p[0]*d_invq_d_x2;
+  dn_drl[2][1] =  y[0]/q + p[1]*d_invq_d_x2;
+  dn_drl[2][2] =           p[2]*d_invq_d_x2;
+
+  /* dn/drm transposed */
+  dn_drm[0][0] =           p[0]*d_invq_d_y0;
+  dn_drm[0][1] =  x[2]/q + p[1]*d_invq_d_y0;
+  dn_drm[0][2] = -x[1]/q + p[2]*d_invq_d_y0;
+
+  dn_drm[1][0] = -x[2]/q + p[0]*d_invq_d_y1;
+  dn_drm[1][1] =           p[1]*d_invq_d_y1;
+  dn_drm[1][2] =  x[0]/q + p[2]*d_invq_d_y1;
+
+  dn_drm[2][0] =  x[1]/q + p[0]*d_invq_d_y2;
+  dn_drm[2][1] = -x[0]/q + p[1]*d_invq_d_y2;
+  dn_drm[2][2] =           p[2]*d_invq_d_y2;
+
+  /* dn/drk transposed */
+  for (i=0; i<DIM; i++) {
+    for (j=0; j<DIM; j++) {
+      dn_drk[i][j] = - (dn_drl[i][j] + dn_drm[i][j]);
+    }
+  }
+
+/*DELETE*/
+/*
+ for (i=0; i<DIM; i++) {
+    for (j=0; j<DIM; j++) {
+      printf("i=%d,j=%d,dri=%f,drn1=%f drn2=%f, drn3=%f\n",i,j,dn_dri[i][j], dn_drk[i][j],  dn_drl[i][j], dn_drm[i][j] );
+    }
+  }
+  fflush(stdout);
+exit(1);
+*/
+
+
+}
+
+
+
 
 /* compute square of rhoij */
 static double get_rho_sq(const double r, const double rvec[DIM], const double n[DIM])
@@ -177,30 +421,146 @@ static double get_rho_sq(const double r, const double rvec[DIM], const double n[
   return rhosq;
 }
 
+static void get_drhoij(const double rij[DIM], const double ni[DIM],
+    double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
+    double dni_drn2[DIM][DIM], double dni_drn3[DIM][DIM],
+    double drho_dri[DIM], double drho_drj[DIM],
+    double drho_drn1[DIM], double drho_drn2[DIM],
+    double drho_drn3[DIM])
+{
+
+  int k;
+  double ni_dot_rij = 0;
+  double dni_dri_dot_rij[DIM];
+  double dni_drn1_dot_rij[DIM];
+  double dni_drn2_dot_rij[DIM];
+  double dni_drn3_dot_rij[DIM];
+
+  ni_dot_rij = dot(ni, rij);
+  mat_dot_vec(dni_dri, rij, dni_dri_dot_rij);
+  mat_dot_vec(dni_drn1, rij, dni_drn1_dot_rij);
+  mat_dot_vec(dni_drn2, rij, dni_drn2_dot_rij);
+  mat_dot_vec(dni_drn3, rij, dni_drn3_dot_rij);
+
+  for (k=0; k<DIM; k++) {
+    drho_dri[k] = -2*rij[k] -2*ni_dot_rij * (-ni[k] + dni_dri_dot_rij[k]);
+    drho_drj[k] = 2*rij[k] - 2*ni_dot_rij*ni[k];
+    drho_drn1[k] = -2*ni_dot_rij * dni_drn1_dot_rij[k];
+    drho_drn2[k] = -2*ni_dot_rij * dni_drn2_dot_rij[k];
+    drho_drn3[k] = -2*ni_dot_rij * dni_drn3_dot_rij[k];
+  }
+
+}
+
+
+
+
+
 /* transverse decay function f(rho)*/
 static double get_td(const double C0, const double C2, const double C4,
-    const double rho_sq, const double delta)
+    const double delta, const double rho_sq)
 {
   double rod_sq;
-  double rslt;
+  double td;
 
   rod_sq = rho_sq/(delta*delta);
-  rslt = exp(-rod_sq) * (C0 + (rod_sq*(C2 + rod_sq*C4)));
+  td = exp(-rod_sq) * (C0 + (rod_sq*(C2 + rod_sq*C4)));
 
-  return rslt;
+  return td;
 }
 
 
-/* cross product, x cross y */
-static void cross(const double x[DIM], const double y[DIM], double rslt[DIM])
+/* derivartive of transverse decay function f(rho) w.r.t rho */
+static void dtd_drho(const double C0, const double C2, const double C4,
+    const double delta, const double rho_sq,  double *const td, double *const dtd)
 {
-  rslt[0] = x[1]*y[2] - x[2]*y[1];
-  rslt[1] = x[2]*y[0] - x[0]*y[2];
-  rslt[2] = x[0]*y[1] - x[1]*y[0];
+  double rod_sq;
+  double rho;
+  double del_sq = delta*delta;
+
+  rho = sqrt(rho_sq);
+  rod_sq = rho_sq/(delta*delta);
+  *td = exp(-rod_sq) * (C0 + (rod_sq*(C2 + rod_sq*C4)));
+  *dtd = -2*rho/del_sq*(*td) + exp(-rod_sq) * (2*C2 + 4*C4*rod_sq)*rho/del_sq;
 }
 
 
 
+/* helper functions */
+/* dot product of two vector */
+double dot(const double x[DIM], const double y[DIM])
+{
+  return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+}
+
+/* matrix dot product a vector, return a vector */
+static void mat_dot_vec(double X[DIM][DIM], const double y[DIM], double z[DIM])
+{
+  int k;
+  for (k=0; k<DIM; k++) {
+    z[k] = X[k][0]*y[0] + X[k][1]*y[1] + X[k][2]*y[2];
+  }
+
+}
+
+/* cross product, z = x cross y */
+static void cross(const double x[DIM], const double y[DIM], double z[DIM])
+{
+  z[0] = x[1]*y[2] - x[2]*y[1];
+  z[1] = x[2]*y[0] - x[0]*y[2];
+  z[2] = x[0]*y[1] - x[1]*y[0];
+}
+
+/* derivative of n = rik x ril (cross product) with respect to ri, rk, and rl */
+/*static void deriv_cross_ri_rk_rl(const double rik[DIM], const double ril[DIM],
+    const double dn_dri[DIM][DIM], const double dn_drk[DIM][DIM],
+    const double dn_drl[DIM][DIM])
+{
+  double rkl;
+  int i j;
+
+  for (i=0; i<DIM; i++) {
+    rkl[i] = ril[i] - rik[i];
+  }
+
+  dn_dri[0][0] = 0.0;
+  dn_dri[0][1] = -rkl[2];
+  dn_dri[0][2] = rkl[1];
+
+  dn_dri[1][0] = -dn_dri[0][1];
+  dn_dri[1][1] = 0.0;
+  dn_dri[1][2] = -rkl[0];
+
+  dn_dri[2][0] = -dn_dri[0][2];
+  dn_dri[2][1] = -dn_dri[1][2];
+  dn_dri[2][2] = 0.0;
+
+  dn_drk[0][0] = 0.0;
+  dn_drk[0][1] = ril[2];
+  dn_drk[0][2] = -ril[1];
+
+  dn_drk[1][0] = -dn_drk[0][1];
+  dn_drk[1][1] = 0.0;
+  dn_drk[1][2] = ril[0];
+
+  dn_drk[2][0] = -dn_drk[0][2];
+  dn_drk[2][1] = -dn_drk[1][2];
+  dn_drk[2][2] = 0.0;
+
+  dn_drl[0][0] = 0.0;
+  dn_drl[0][1] = -rik[2];
+  dn_drl[0][2] = rik[1];
+
+  dn_drl[1][0] = -dn_drk[0][1];
+  dn_drl[1][1] = 0.0;
+  dn_drl[1][2] = -rik[0];
+
+  dn_drl[2][0] = -dn_drk[0][2];
+  dn_drl[2][1] = -dn_drk[1][2];
+  dn_drl[2][2] = 0.0;
+}
+
+*/
 
 /* compute function */
 static int compute(void* km)
@@ -227,6 +587,7 @@ static int compute(void* km)
   int k;
   int ii;
   int jj;
+  int kk;
   int kdim;
   int currentAtom;
   int* neighListOfCurrentAtom;
@@ -247,7 +608,6 @@ static int compute(void* km)
   int* nSpecies;
   int* particleSpecies;
   int* particleStatus;
-  double cutoff;
   double cutsq;
   double* Rij_list;
   double* coords;
@@ -276,17 +636,27 @@ static int compute(void* km)
   int* in_layer; /* atoms in which layer , -1: not classified in any layer */
   int* layer; /* layer contains which atoms */
   double (*normal)[DIM];
+  int (*nearest3neigh)[DIM];
   int currentLayer;
   int nin; /* number of atoms in current layer */
   int nremain; /* number of atoms not included in any layer */
   int nlayers;
   double tmp_normal[DIM];
+  int neigh1, neigh2, neigh3;
   double neigh1_Rsq, neigh2_Rsq, neigh3_Rsq;
   double neigh1_Rvec[DIM], neigh2_Rvec[DIM], neigh3_Rvec[DIM];
+  int neigh1j, neigh2j, neigh3j;
+  double dni_dri[DIM][DIM];    /* derivative of normal at i w.r.t. its coordinates */
+  double dni_drn1[DIM][DIM];   /* derivaitve of normal at i w.r.t. coords of 3 nearest neighs */
+  double dni_drn2[DIM][DIM];
+  double dni_drn3[DIM][DIM];
+  double dnj_drj[DIM][DIM];    /* derivative of normal at j w.r.t. its coordinates */
+  double dnj_drn1[DIM][DIM];   /* derivaitve of normal at j w.r.t. coords of 3 nearest neighs */
+  double dnj_drn2[DIM][DIM];
+  double dnj_drn3[DIM][DIM];
   int ilayer;
   int jlayer;
   double cutsq_layer = (0.72*3.44)*(0.72*3.44);
-
 
 
 
@@ -381,6 +751,7 @@ static int compute(void* km)
   layer = (int*) malloc((*nAtoms)*sizeof(int));
   in_layer = (int*) malloc((*nAtoms)*sizeof(int));
   normal = (double(*)[DIM]) malloc((*nAtoms)*DIM*sizeof(double));
+  nearest3neigh = (int(*)[DIM]) malloc((*nAtoms)*DIM*sizeof(double));
 
   /* init atoms layer to -1 (not in any layer)*/
   for (k=0; k<*nAtoms; k++) {
@@ -453,6 +824,9 @@ static int compute(void* km)
 
 
       /* init neigh1 to be the 1st nearest neigh, neigh3 the 3rd nearest */
+      neigh1 = -1;
+      neigh2 = -1;
+      neigh3 = -1;
       neigh1_Rsq = 1.0e10;
       neigh2_Rsq = 2.0e10;
       neigh3_Rsq = 3.0e10;
@@ -516,6 +890,9 @@ static int compute(void* km)
             neigh2_Rvec[k] = neigh1_Rvec[k];
             neigh1_Rvec[k] = Rij[k];
           }
+          neigh3 = neigh2;
+          neigh2 = neigh1;
+          neigh1 = j;
           neigh3_Rsq = neigh2_Rsq;
           neigh2_Rsq = neigh1_Rsq;
           neigh1_Rsq = Rsqij;
@@ -524,12 +901,15 @@ static int compute(void* km)
             neigh3_Rvec[k] = neigh2_Rvec[k];
             neigh2_Rvec[k] = Rij[k];
           }
+          neigh3 = neigh2;
+          neigh2 = j;
           neigh3_Rsq = neigh2_Rsq;
           neigh2_Rsq = Rsqij;
         } else if (Rsqij < neigh3_Rsq) {
           for (k=0; k<DIM; k++) {
             neigh3_Rvec[k] = Rij[k];
           }
+          neigh3 = j;
           neigh3_Rsq = Rsqij;
         }
 
@@ -552,11 +932,24 @@ static int compute(void* km)
           return ier;
         }
 
-        /* compute normal */
+        /* Compute normal. Since normal will be used in i j pair, so we compute
+           and store it. This is of order O(N); If we compute it in i j loop,
+           it is O(N^2)*/
         get_normal(neigh1_Rvec, neigh2_Rvec, neigh3_Rvec, tmp_normal);
         for (k=0; k<DIM; k++) {
           normal[i][k] = tmp_normal[k];
         }
+
+        /* store nearest 3 neigh. This is for latter use to comptue the derivatives
+           of normal; Naively, we can compute the derivatives here, but each atom has
+           3 nerest neighs, and the derivative with respect to each neigh has 9
+           component, resulting in storing an array of size N*27. Seems not good.
+           Also note that the derivative of normal at atom i has nohing to do atom j,
+           so we can compute the derivaite w.r.t i and its 3 nearest neighs in the
+           i loop, no need to enter j loop later in the computation for energy. */
+        nearest3neigh[i][0] = neigh1;
+        nearest3neigh[i][1] = neigh2;
+        nearest3neigh[i][2] = neigh3;
       }
 
       /* get to the next atom in current layer */
@@ -605,8 +998,6 @@ static int compute(void* km)
     {
       i++;
 
-/*printf("natoms=%d, cutsq=%f, i=%d, particleStat=%d\n",*nAtoms, cutsq, i,particleStatus[i]);
-*/
       if (*nAtoms <= i) /* incremented past end of list, terminate loop */
       {
         break;
@@ -643,6 +1034,32 @@ static int compute(void* km)
     ilayer = in_layer[i];
 
 
+    /* get 3 nearest neighs of atom i and compute the derivative of ni w.r.t. them */
+    if (comp_force) {
+      for (kk=0; kk<3; kk++) {
+
+        k = nearest3neigh[i][kk];
+
+        /* compute relative position vector */
+        for (kdim = 0; kdim < DIM; ++kdim) {
+          if (kk == 0) {
+            neigh1 = k;
+            neigh1_Rvec[kdim] = coords[k*DIM + kdim] - coords[i*DIM + kdim];
+          } else if (kk == 1) {
+            neigh2 = k;
+            neigh2_Rvec[kdim] = coords[k*DIM + kdim] - coords[i*DIM + kdim];
+          } else if (kk == 2) {
+            neigh3 = k;
+            neigh3_Rvec[kdim] = coords[k*DIM + kdim] - coords[i*DIM + kdim];
+          }
+        }
+      }
+
+      /* compute derivatives of ni */
+      get_dni(neigh1_Rvec, neigh2_Rvec, neigh3_Rvec, dni_dri, dni_drn1, dni_drn2, dni_drn3);
+    }
+
+
     /* loop over the neighbors of atom i */
     for (jj = 0; jj < numOfAtomNeigh; ++ jj) {
 
@@ -652,6 +1069,7 @@ static int compute(void* km)
 
       /* atoms in the same layer do not interact */
       if (ilayer == jlayer) continue;
+
 
       /* get corresponding parameters */
       if (iSpecies == SPEC1 && jSpecies == SPEC1) {
@@ -663,7 +1081,6 @@ static int compute(void* km)
       }
 
       /* get two body parameters */
-      cutoff = (buffer->cutoff)[inter_idx];
       cutsq  = (buffer->cutsq)[inter_idx];
       C0     = (buffer->C0)[inter_idx];
       C2     = (buffer->C2)[inter_idx];
@@ -673,7 +1090,6 @@ static int compute(void* km)
       lambda = (buffer->lambda)[inter_idx];
       A      = (buffer->A)[inter_idx];
       z0     = (buffer->z0)[inter_idx];
-
 
 
       /* compute relative position vector and squared distance */
@@ -703,61 +1119,71 @@ static int compute(void* km)
       }
       R = sqrt(Rsqij);
 
+
       /* compute energy and force */
       if (Rsqij > cutsq) continue; /* particles are not interacting  */
 
-/*      if (comp_force || comp_process_dEdr)
-      {
-*/
-        /* compute pair potential and its derivative */
-/*        calc_phi_dphi_two(*A, *B, *p, *q, *cutoff, *sigma,
-            R1, &phi_two, &dphi_two);
 
-        dEidr_two = 0.5*dphi_two;
+      /* get 3 nearest neighs of atom j and compute the derivative of nj w.r.t. them */
+      if (comp_force) {
+        for (kk=0; kk<3; kk++) {
+
+          k = nearest3neigh[j][kk];
+
+          /* compute relative position vector */
+          for (kdim = 0; kdim < DIM; ++kdim) {
+            if (kk == 0) {
+              neigh1j = k;
+              neigh1_Rvec[kdim] = coords[k*DIM + kdim] - coords[j*DIM + kdim];
+            } else if (kk == 1) {
+              neigh2j = k;
+              neigh2_Rvec[kdim] = coords[k*DIM + kdim] - coords[j*DIM + kdim];
+            } else if (kk == 2) {
+              neigh3j = k;
+              neigh3_Rvec[kdim] = coords[k*DIM + kdim] - coords[j*DIM + kdim];
+            }
+          }
+        }
+
+        /* compute derivatives of nj */
+        get_dni(neigh1_Rvec, neigh2_Rvec, neigh3_Rvec, dnj_drj, dnj_drn1, dnj_drn2, dnj_drn3);
       }
-      else
- */
+
+
+
+      if (comp_force)
       {
+        /* compute forces and energy */
+        /* the repuslive part */
+        calc_phi_forces_repulsive(C0, C2, C4, C, delta, lambda, z0, R, Rij, i,
+            normal[i], neigh1, neigh2, neigh3, dni_dri, dni_drn1, dni_drn2, dni_drn3,
+            j, normal[j], neigh1j, neigh2j, neigh3j, dnj_drj, dnj_drn1, dnj_drn2, dnj_drn3,
+            &phi_repul, force);
+
+        /* the attractive part */
+        calc_phi_forces_attractive(A, z0, R, Rij, i, j, &phi_attract, force);
+      } else {
         /* compute just pair potential */
         calc_phi_repulsive(C0, C2, C4, C, delta, lambda, z0, R, Rij, normal[i],
             normal[j], &phi_repul);
-          calc_phi_attractive(A, z0, R, &phi_attract);
+        calc_phi_attractive(A, z0, R, &phi_attract);
       }
 
       /* contribution to energy */
-      if (comp_particleEnergy)
-      {
+      if (comp_particleEnergy) {
         particleEnergy[i] += 0.5*(phi_repul + phi_attract);
       }
-      if (comp_energy)
-      {
+      if (comp_energy) {
         *energy += 0.5*(phi_repul + phi_attract);
       }
 
-      /* contribution to process_dEdr */
-/*      if (comp_process_dEdr)
-      {
-        ier = KIM_API_process_dEdr(km, &dEidr_two, &R1, &pRij, &i, &j);
-      }
-*/
-
-      /* contribution to forces */
-/*      if (comp_force) {
-        for (kdim = 0; kdim < DIM; ++kdim) {
-          force[i*DIM + kdim] += (dEidr_repul + dEidr_attract)*Rij[kdim]/R;
-          force[j*DIM + kdim] -= (dEidr_repul + dEidr_attract)*Rij[kdim]/R;
-        }
-      }
-*/
 
     } /* loop on jj */
-
-
   }    /* infinite while loop terminated by break statements above */
 
+
   /* Free temporary storage */
-  if (3 == NBC)
-  {
+  if (3 == NBC) {
     free(neighListOfCurrentAtom);
   }
 
@@ -766,6 +1192,7 @@ static int compute(void* km)
   free(layer);
   free(in_layer);
   free(normal);
+  free(nearest3neigh);
 
 
   /* everything is great */
