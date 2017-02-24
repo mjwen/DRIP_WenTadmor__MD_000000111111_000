@@ -560,10 +560,12 @@ static double calc_attractive(model_buffer *const buffer, const int i, const int
   phi = - A/(roz0_sq*roz0_sq*roz0_sq);
 
   /* forces */
-  fpair = - HALF * 6*phi/r;
-  for (k=0; k<DIM; k++) {
-    forces[i][k] += rij[k]*fpair/r;
-    forces[j][k] -= rij[k]*fpair/r;
+  if (buffer->comp_forces) {
+    fpair = - HALF * 6*phi/r;
+    for (k=0; k<DIM; k++) {
+      forces[i][k] += rij[k]*fpair/r;
+      forces[j][k] -= rij[k]*fpair/r;
+    }
   }
 
   return phi;
@@ -673,27 +675,29 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
   phi = V1*V2;
 
   /* forces */
-  for (k=0; k<DIM; k++) {
+  if (buffer->comp_forces) {
+    for (k=0; k<DIM; k++) {
 
-    /* derivative of V1 */
-    tmp = - HALF * lambda * phi * rij[k]/r;
-    forces[i][k] += tmp;
-    forces[j][k] -= tmp;
+      /* derivative of V1 */
+      tmp = - HALF * lambda * phi * rij[k]/r;
+      forces[i][k] += tmp;
+      forces[j][k] -= tmp;
 
-    /* derivative of V2 contribute to atoms i, j */
-    forces[i][k] -= HALF * V1 * (dtdij*drhosqij_dri[k] + dtdji*drhosqji_dri[k]);
-    forces[j][k] += HALF * V1 * (dtdij*drhosqij_drj[k] + dtdji*drhosqji_drj[k]);
+      /* derivative of V2 contribute to atoms i, j */
+      forces[i][k] -= HALF * V1 * (dtdij*drhosqij_dri[k] + dtdji*drhosqji_dri[k]);
+      forces[j][k] += HALF * V1 * (dtdij*drhosqij_drj[k] + dtdji*drhosqji_drj[k]);
 
-    /* derivative of V2 contribute to neighs of atom i */
-    forces[nbi1][k] -= HALF * V1 * dtdij*drhosqij_drnb1[k];
-    forces[nbi2][k] -= HALF * V1 * dtdij*drhosqij_drnb2[k];
-    forces[nbi3][k] -= HALF * V1 * dtdij*drhosqij_drnb3[k];
+      /* derivative of V2 contribute to neighs of atom i */
+      forces[nbi1][k] -= HALF * V1 * dtdij*drhosqij_drnb1[k];
+      forces[nbi2][k] -= HALF * V1 * dtdij*drhosqij_drnb2[k];
+      forces[nbi3][k] -= HALF * V1 * dtdij*drhosqij_drnb3[k];
 
-    /* derivative of V2 contribute to neighs of atom j */
-    forces[nbj1][k] -= HALF * V1 * dtdji*drhosqji_drnb1[k];
-    forces[nbj2][k] -= HALF * V1 * dtdji*drhosqji_drnb2[k];
-    forces[nbj3][k] -= HALF * V1 * dtdji*drhosqji_drnb3[k];
- }
+      /* derivative of V2 contribute to neighs of atom j */
+      forces[nbj1][k] -= HALF * V1 * dtdji*drhosqji_drnb1[k];
+      forces[nbj2][k] -= HALF * V1 * dtdji*drhosqji_drnb2[k];
+      forces[nbj3][k] -= HALF * V1 * dtdji*drhosqji_drnb3[k];
+    }
+  }
 
   return phi;
 }

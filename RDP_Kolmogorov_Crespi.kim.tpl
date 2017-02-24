@@ -42,8 +42,6 @@ PARTICLE_SPECIES:
 # Symbol/name               Type                    code
 
 SPECIES_001_NAME_STR        spec                    1
-SPECIES_002_NAME_STR        spec                    2
-SPECIES_003_NAME_STR        spec                    3
 
 
 #######################################################################################################
@@ -52,25 +50,16 @@ CONVENTIONS:
 
 ZeroBasedLists              flag
 
-#Neigh_IterAccess            flag
-
 Neigh_LocaAccess            flag
-
-MI_OPBC_F                   flag
-
-NEIGH_RVEC_F                flag
 
 NEIGH_PURE_F                flag
 
-CLUSTER                     flag
 
 #######################################################################################################
 MODEL_INPUT:
 # Name                      Type         Unit                Shape              Requirements
 
 numberOfParticles           integer      none                []
-
-numberContributingParticles integer      none                []                  optional
 
 numberOfSpecies             integer      none                []
 
@@ -79,8 +68,6 @@ particleSpecies             integer      none                [numberOfParticles]
 particleStatus              integer      none                [numberOfParticles]
 
 coordinates                 double       length              [numberOfParticles,3]
-
-boxSideLengths              double       length              [3]                  optional
 
 get_neigh                   method       none                []                   optional
 
@@ -108,7 +95,6 @@ particleEnergy              double       energy              [numberOfParticles]
 
 process_dEdr                method       none                []                    optional
 
-process_d2Edr2              method       none                []                    optional
 
 #######################################################################################################
 MODEL_PARAMETERS:
