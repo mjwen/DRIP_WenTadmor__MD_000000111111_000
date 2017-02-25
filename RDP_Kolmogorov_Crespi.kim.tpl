@@ -25,7 +25,6 @@
 #    Ryan S. Elliott
 #    Ellad B. Tadmor
 #    Valeriu Smirichinski
-#    Amit Singh
 #    Mingjian Wen
 
 KIM_API_Version := 1.6.0
