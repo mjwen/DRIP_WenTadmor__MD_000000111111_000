@@ -685,7 +685,7 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
 
       /* derivative of V2 contribute to atoms i, j */
       forces[i][k] -= HALF * V1 * (dtdij*drhosqij_dri[k] + dtdji*drhosqji_dri[k]);
-      forces[j][k] += HALF * V1 * (dtdij*drhosqij_drj[k] + dtdji*drhosqji_drj[k]);
+      forces[j][k] -= HALF * V1 * (dtdij*drhosqij_drj[k] + dtdji*drhosqji_drj[k]);
 
       /* derivative of V2 contribute to neighs of atom i */
       forces[nbi1][k] -= HALF * V1 * dtdij*drhosqij_drnb1[k];
@@ -868,8 +868,8 @@ static double td(double C0, double C2, double C4, double delta,
   rho_sq = r*r - n_dot_r*n_dot_r;
   del_sq = delta*delta;
   rod_sq = rho_sq/del_sq;
-  td = exp(-rod_sq) * (C0 + (rod_sq*(C2 + rod_sq*C4)));
-  *dtd = td/del_sq + exp(-rod_sq) * (C2 + 2*C4*rod_sq)/del_sq;
+  td = exp(-rod_sq) * (C0 + rod_sq*(C2 + rod_sq*C4));
+  *dtd = -td/del_sq + exp(-rod_sq) * (C2 + 2*C4*rod_sq)/del_sq;
 
   return td;
 }
