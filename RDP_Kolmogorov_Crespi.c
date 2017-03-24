@@ -270,6 +270,7 @@ static int create_layers(void* km)
   double rsq;
   int i,j,k,ii,jj;
   int ier;
+  int more_than_one_layer;
 
 
   /* unpack data from buffer */
@@ -407,6 +408,25 @@ static int create_layers(void* km)
       if (nremain == 0) break;
       nlayers += 1;
   } /* end while finding all layers */
+
+  /* whether all atoms in the same layer? */
+  more_than_one_layer = 0;
+  currentLayer = 0;
+  for (i=0; i<nAtoms; i++) {
+    if (in_layer[i] != currentLayer) { /* find a atom not in current layer */
+      more_than_one_layer = 1;
+      break;
+    }
+  }
+  if (! more_than_one_layer) {
+    ier = KIM_STATUS_FAIL;
+    KIM_API_report_error(__LINE__, __FILE__, "Only one layer detected. The layer "
+    "sepration seems to small. You can either use larger layer separation or "
+    "tune `cutsq_layer' in the Model.", ier);
+    ier = KIM_STATUS_FAIL;
+    return ier;
+  }
+
 
   /* store in_layer nearest3neigh in bubber */
   buffer->in_layer = in_layer;
