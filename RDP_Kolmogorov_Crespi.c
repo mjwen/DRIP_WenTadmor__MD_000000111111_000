@@ -272,6 +272,7 @@ static int create_layers(void* km)
   double rsq;
   int i,j,k,ii,jj;
   int ier;
+  int more_than_one_layer;
 
 
   /* unpack data from buffer */
@@ -347,6 +348,7 @@ static int create_layers(void* km)
         /* compute relative position vector and squared distance */
         rsq = rsq_rij(buffer, i, j, rij);
 
+
         /* belongs to current layer */
         if (rsq < cutsq_layer) {
           if (in_layer[j] == -1) { /* has not been included in some layer */
@@ -383,6 +385,7 @@ static int create_layers(void* km)
 
       } /* loop on jj */
 
+
       /* check whether we have enough neighs to compute normal*/
       if (nb1_rsq >= 1.0e10 || nb2_rsq >= 1.0e10 ||  nb3_rsq >= 1.0e10) {
         ier = KIM_STATUS_FAIL;
@@ -409,6 +412,26 @@ static int create_layers(void* km)
       if (nremain == 0) break;
       nlayers += 1;
   } /* end while finding all layers */
+
+
+  /* whether all atoms in the same layer? */
+  more_than_one_layer = 0;
+  currentLayer = 0;
+  for (i=0; i<nAtoms; i++) {
+    if (in_layer[i] != currentLayer) { /* find a atom not in current layer */
+      more_than_one_layer = 1;
+      break;
+    }
+  }
+  if (! more_than_one_layer) {
+    ier = KIM_STATUS_FAIL;
+    KIM_API_report_error(__LINE__, __FILE__, "Only one layer detected. The layer "
+    "sepration seems to small. You can either use larger layer separation or "
+    "tune `cutsq_layer' in the Model.", ier);
+    ier = KIM_STATUS_FAIL;
+    return ier;
+  }
+
 
   /* store in_layer nearest3neigh in bubber */
   buffer->in_layer = in_layer;
