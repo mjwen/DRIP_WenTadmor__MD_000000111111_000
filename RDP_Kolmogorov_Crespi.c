@@ -131,6 +131,8 @@ static void get_drhosqij(const double rij[DIM], const double ni[DIM],
     double drhosq_drn1[DIM], double drhosq_drn2[DIM],
     double drhosq_drn3[DIM]);
 
+static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap);
+
 /* helper */
 static double rsq_rij(model_buffer* const buffer, const int i, const int j,
     double *const rij);
@@ -544,6 +546,11 @@ static double calc_attractive(model_buffer *const buffer, const int i, const int
   double A;
   double z0;
 
+  double tp;
+  double dtp;
+  double r6;
+  double dr6;
+
   double roz0_sq;
   double phi;
   double fpair;
@@ -557,11 +564,15 @@ static double calc_attractive(model_buffer *const buffer, const int i, const int
   A = buffer->A[inter_idx];
 
   roz0_sq = r*r/(z0*z0);
-  phi = - A/(roz0_sq*roz0_sq*roz0_sq);
+  tp = tap(buffer, i, j, r, &dtp);
+  r6 = A/(roz0_sq*roz0_sq*roz0_sq);
+  dr6 = -6*r6/r;
+
+  phi = - r6*tp;
 
   /* forces */
   if (buffer->comp_forces) {
-    fpair = - HALF * 6*phi/r;
+    fpair = - HALF * (r6*dtp + dr6*tp);
     for (k=0; k<DIM; k++) {
       forces[i][k] += rij[k]*fpair/r;
       forces[j][k] -= rij[k]*fpair/r;
@@ -608,8 +619,9 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
   vectorDIM dnj_drnb2[DIM];
   vectorDIM dnj_drnb3[DIM];
 
-  double V1;
+  double V1, dV1;
   double V2;
+  double tp, dtp;
   double tdij, tdji;
   double dtdij, dtdji;
   vectorDIM drhosqij_dri;
@@ -668,34 +680,39 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
   /* transverse decay function f(rho) and its derivative w.r.t. rhosq */
   tdij = td(C0, C2, C4, delta, rij, r, ni, &dtdij);
   tdji = td(C0, C2, C4, delta, rji, r, nj, &dtdji);
-
-  V1 = exp(-lambda*(r-z0));
   V2 = C + tdij + tdji;
 
-  phi = V1*V2;
+  /* tap part */
+  tp = tap(buffer, i, j, r, &dtp);
+
+  /* exponential part */
+  V1 = exp(-lambda*(r-z0));
+  dV1 = -V1*lambda;
+
+  phi = tp*V1*V2;
 
   /* forces */
   if (buffer->comp_forces) {
     for (k=0; k<DIM; k++) {
 
-      /* derivative of V1 */
-      tmp = - HALF * lambda * phi * rij[k]/r;
+      /* forces due to derivatives of tap and V1 */
+      tmp =  HALF* (dtp*V1 + tp*dV1) *V2 *rij[k]/r;
       forces[i][k] += tmp;
       forces[j][k] -= tmp;
 
       /* derivative of V2 contribute to atoms i, j */
-      forces[i][k] -= HALF * V1 * (dtdij*drhosqij_dri[k] + dtdji*drhosqji_dri[k]);
-      forces[j][k] -= HALF * V1 * (dtdij*drhosqij_drj[k] + dtdji*drhosqji_drj[k]);
+      forces[i][k] -= HALF*tp*V1* (dtdij*drhosqij_dri[k] + dtdji*drhosqji_dri[k]);
+      forces[j][k] -= HALF*tp*V1* (dtdij*drhosqij_drj[k] + dtdji*drhosqji_drj[k]);
 
       /* derivative of V2 contribute to neighs of atom i */
-      forces[nbi1][k] -= HALF * V1 * dtdij*drhosqij_drnb1[k];
-      forces[nbi2][k] -= HALF * V1 * dtdij*drhosqij_drnb2[k];
-      forces[nbi3][k] -= HALF * V1 * dtdij*drhosqij_drnb3[k];
+      forces[nbi1][k] -= HALF*tp*V1* dtdij*drhosqij_drnb1[k];
+      forces[nbi2][k] -= HALF*tp*V1* dtdij*drhosqij_drnb2[k];
+      forces[nbi3][k] -= HALF*tp*V1* dtdij*drhosqij_drnb3[k];
 
       /* derivative of V2 contribute to neighs of atom j */
-      forces[nbj1][k] -= HALF * V1 * dtdji*drhosqji_drnb1[k];
-      forces[nbj2][k] -= HALF * V1 * dtdji*drhosqji_drnb2[k];
-      forces[nbj3][k] -= HALF * V1 * dtdji*drhosqji_drnb3[k];
+      forces[nbj1][k] -= HALF*tp*V1* dtdji*drhosqji_drnb1[k];
+      forces[nbj2][k] -= HALF*tp*V1* dtdji*drhosqji_drnb2[k];
+      forces[nbj3][k] -= HALF*tp*V1* dtdji*drhosqji_drnb3[k];
     }
   }
 
@@ -873,6 +890,31 @@ static double td(double C0, double C2, double C4, double delta,
 
   return td;
 }
+
+
+
+/* tap */
+static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap)
+{
+  int inter_idx;
+  double cutoff;
+  double roc;
+  double roc_sq;
+  double t;
+
+  inter_idx = param_index(buffer, i, j);
+  cutoff = buffer->cutoff[inter_idx];
+
+  roc = r/cutoff;
+  roc_sq = roc*roc;
+  t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
+  *dtap = roc_sq*roc_sq* (-140.0/r + 420.0/cutoff + roc_sq* (-420.0/r + 140.0/cutoff));
+
+  return t;
+}
+
+
+
 
 
 /* helper functions */
