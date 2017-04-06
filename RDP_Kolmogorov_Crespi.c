@@ -97,6 +97,8 @@ typedef struct {
   double* lambda;
   double* A;
   double* z0;
+  double* B;
+  double* eta;
 } model_buffer;
 
 /* function prototypes that all Model Drivers need */
@@ -121,8 +123,12 @@ static void normal(model_buffer *const buffer, const int i, int *const nbi1,
     int *const nbi2, int *const nbi3, double normal[DIM], double dn_dri[DIM][DIM],
     double dn_drk[DIM][DIM], double dn_drl[DIM][DIM], double dn_drm[DIM][DIM]);
 
+static void deriv_cross(double rk[DIM], double rl[DIM], double rm[DIM], double cross[DIM],
+    double dcross_drk[DIM][DIM], double dcross_drl[DIM][DIM], double dcross_drm[DIM][DIM]);
+
 static double td(double C0, double C2, double C4, double delta,
-    const double* rvec, double r, const double* n, double *const dtd);
+    const double* rvec, double r, const double* n,  double *const rho_sq,
+    double *const dtd);
 
 static void get_drhosqij(const double rij[DIM], const double ni[DIM],
     double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
@@ -130,6 +136,16 @@ static void get_drhosqij(const double rij[DIM], const double ni[DIM],
     double drhosq_dri[DIM], double drhosq_drj[DIM],
     double drhosq_drn1[DIM], double drhosq_drn2[DIM],
     double drhosq_drn3[DIM]);
+
+static double  dihedral(model_buffer *const buffer, double rhosq, const int i, const int j,
+    double *const d_drhosq, double d_dri[DIM], double d_drj[DIM],
+    double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
+    double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM]);
+
+static void deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
+  double rl[DIM], double cos_omega, double dcos_drk[DIM], double dcos_dri[DIM],
+  double dcos_drj[DIM], double dcos_drl[DIM]);
+
 
 static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap);
 
@@ -646,7 +662,27 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
   double V2;
   double tp, dtp;
   double tdij, tdji;
+  double rhosqij, rhosqji;
   double dtdij, dtdji;
+  double gij, gji;
+  double dgij_drhosq, dgji_drhosq;
+  vectorDIM dgij_dri;
+  vectorDIM dgij_drj;
+  vectorDIM dgij_drk1;
+  vectorDIM dgij_drk2;
+  vectorDIM dgij_drk3;
+  vectorDIM dgij_drl1;
+  vectorDIM dgij_drl2;
+  vectorDIM dgij_drl3;
+  vectorDIM dgji_dri;
+  vectorDIM dgji_drj;
+  vectorDIM dgji_drk1;
+  vectorDIM dgji_drk2;
+  vectorDIM dgji_drk3;
+  vectorDIM dgji_drl1;
+  vectorDIM dgji_drl2;
+  vectorDIM dgji_drl3;
+
   vectorDIM drhosqij_dri;
   vectorDIM drhosqij_drj;
   vectorDIM drhosqij_drnb1;
@@ -694,18 +730,28 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
   /* get 3 nearest neighs of atom i and compute the derivative of ni w.r.t. them */
   normal(buffer, j, &nbj1, &nbj2, &nbj3, nj, dnj_drj, dnj_drnb1, dnj_drnb2, dnj_drnb3);
 
-  /* derivative of rho w.r.t coords of atoms i, j, and the nearests 3 neighs of i */
+  /* derivative of rhosq w.r.t coords of atoms i, j, and the nearests 3 neighs of i */
   get_drhosqij(rij, ni, dni_dri, dni_drnb1, dni_drnb2, dni_drnb3, drhosqij_dri,
       drhosqij_drj, drhosqij_drnb1, drhosqij_drnb2, drhosqij_drnb3);
   get_drhosqij(rji, nj, dnj_drj, dnj_drnb1, dnj_drnb2, dnj_drnb3, drhosqji_drj,
       drhosqji_dri, drhosqji_drnb1, drhosqji_drnb2, drhosqji_drnb3);
 
   /* transverse decay function f(rho) and its derivative w.r.t. rhosq */
-  tdij = td(C0, C2, C4, delta, rij, r, ni, &dtdij);
-  tdji = td(C0, C2, C4, delta, rji, r, nj, &dtdji);
-  V2 = C + tdij + tdji;
+  tdij = td(C0, C2, C4, delta, rij, r, ni, &rhosqij, &dtdij);
+  tdji = td(C0, C2, C4, delta, rji, r, nj, &rhosqji, &dtdji);
+
+  /* dihedral angle function and its derivateives */
+  gij = dihedral(buffer, rhosqij, i, j, &dgij_drhosq, dgij_dri, dgij_drj,
+      dgij_drk1, dgij_drk2, dgij_drk3,dgij_drl1, dgij_drl2, dgij_drl3);
+  gji = dihedral(buffer, rhosqji, j, i, &dgji_drhosq, dgji_drj, dgji_dri,
+      dgji_drl1, dgji_drl2, dgji_drl3, dgji_drk1, dgji_drk2, dgji_drk3);
+
+
+  V2 = C + tdij + tdji + gij + gji;
+
 
   /* tap part */
+/* NOTE this could be modified to pass cutoff, not passing buffer and i, j*/
   tp = tap(buffer, i, j, r, &dtp);
 
   /* exponential part */
@@ -723,19 +769,29 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
       forces[i][k] += tmp;
       forces[j][k] -= tmp;
 
+      /* the following incldue the transverse decay part tdij or tdji, and the dihedral
+         part gij or gji */
       /* derivative of V2 contribute to atoms i, j */
-      forces[i][k] -= HALF*tp*V1* (dtdij*drhosqij_dri[k] + dtdji*drhosqji_dri[k]);
-      forces[j][k] -= HALF*tp*V1* (dtdij*drhosqij_drj[k] + dtdji*drhosqji_drj[k]);
+      forces[i][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_dri[k]
+          + (dtdji+dgji_drhosq)*drhosqji_dri[k] + dgij_dri[k] + dgji_dri[k] );
+      forces[j][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drj[k]
+          + (dtdji+dgji_drhosq)*drhosqji_drj[k] + dgij_drj[k] + dgji_drj[k] );
 
       /* derivative of V2 contribute to neighs of atom i */
-      forces[nbi1][k] -= HALF*tp*V1* dtdij*drhosqij_drnb1[k];
-      forces[nbi2][k] -= HALF*tp*V1* dtdij*drhosqij_drnb2[k];
-      forces[nbi3][k] -= HALF*tp*V1* dtdij*drhosqij_drnb3[k];
+      forces[nbi1][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drnb1[k]
+          + dgij_drk1[k] + dgji_drk1[k] );
+      forces[nbi2][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drnb2[k]
+          + dgij_drk2[k] + dgji_drk2[k] );
+      forces[nbi3][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drnb3[k]
+          + dgij_drk3[k] + dgji_drk3[k] );
 
       /* derivative of V2 contribute to neighs of atom j */
-      forces[nbj1][k] -= HALF*tp*V1* dtdji*drhosqji_drnb1[k];
-      forces[nbj2][k] -= HALF*tp*V1* dtdji*drhosqji_drnb2[k];
-      forces[nbj3][k] -= HALF*tp*V1* dtdji*drhosqji_drnb3[k];
+      forces[nbj1][k] -= HALF*tp*V1* ( (dtdji+dgji_drhosq)*drhosqji_drnb1[k]
+          + dgij_drl1[k] + dgji_drl1[k]);
+      forces[nbj2][k] -= HALF*tp*V1* ( (dtdji+dgji_drhosq)*drhosqji_drnb2[k]
+          + dgij_drl2[k] + dgji_drl2[k]);
+      forces[nbj3][k] -= HALF*tp*V1* ( (dtdji+dgji_drhosq)*drhosqji_drnb3[k]
+          + dgij_drl3[k] + dgji_drl3[k]);
     }
   }
 
@@ -765,12 +821,45 @@ static int free_data(void* km)
 }
 
 
-/* compute normal and its derivatives  w.r.t atom ri, and its 3 nearest neighs k, l, m.*/
-static void normal(model_buffer *const buffer, const int i, int *const nbi1,
-    int* const nbi2, int* const nbi3, double normal[DIM], double dn_dri[DIM][DIM],
-    double dn_drk[DIM][DIM], double dn_drl[DIM][DIM], double dn_drm[DIM][DIM])
+/* compute normal and its derivatives w.r.t atom ri, and its 3 nearest neighs k1, k2, k3*/
+static void normal(model_buffer *const buffer, const int i, int *const k1,
+    int* const k2, int* const k3, double normal[DIM], double dn_dri[DIM][DIM],
+    double dn_drk1[DIM][DIM], double dn_drk2[DIM][DIM], double dn_drk3[DIM][DIM])
 {
   /* local variables */
+  int (*nearest3neigh)[3];
+  vectorDIM* coords;
+  int j,k;
+
+  /* unpack data from buffer */
+  nearest3neigh = buffer->nearest3neigh;
+  coords = buffer->coords;
+
+  *k1 = nearest3neigh[i][0];
+  *k2 = nearest3neigh[i][1];
+  *k3 = nearest3neigh[i][2];
+
+  /* normal does not depend on i, setting to zero */
+  for (j=0; j<DIM; j++) {
+    for (k=0; k<DIM; k++) {
+      dn_dri[j][k] = 0.0;
+    }
+  }
+
+  /* get normal and derives of normal w.r.t to neighbors of  */
+  deriv_cross(coords[*k1], coords[*k2], coords[*k3], normal, dn_drk1, dn_drk2, dn_drk2);
+}
+
+
+/* Compute the normalized cross product of two vector rkl, rkm, and the derivates
+   w.r.t rk, rl, rm.
+  NOTE, the dcross_drk, dcross_drl, and dcross_drm is actually the transpose of the
+  actual one.
+*/
+static void deriv_cross(double rk[DIM], double rl[DIM], double rm[DIM], double cross[DIM],
+  double dcross_drk[DIM][DIM], double dcross_drl[DIM][DIM], double dcross_drm[DIM][DIM])
+{
+
   double x[DIM];
   double y[DIM];
   double p[DIM];
@@ -782,38 +871,27 @@ static void normal(model_buffer *const buffer, const int i, int *const nbi1,
   double d_invq_d_y0;
   double d_invq_d_y1;
   double d_invq_d_y2;
-  int (*nearest3neigh)[3];
-  vectorDIM* coords;
-  int j,k;
 
-  /* unpack data from buffer */
-  nearest3neigh = buffer->nearest3neigh;
-  coords = buffer->coords;
+  int i,j;
 
-  *nbi1 = nearest3neigh[i][0];
-  *nbi2 = nearest3neigh[i][1];
-  *nbi3 = nearest3neigh[i][2];
 
   /* get x = rkl and y = rkm */
-  for (j=0; j<DIM; j++) {
-    x[j] = coords[*nbi2][j] - coords[*nbi1][j];
-    y[j] = coords[*nbi3][j] - coords[*nbi1][j];
-    for (k=0; k<DIM; k++) {
-      /*dn/dri transposed */
-      dn_dri[j][k] = 0.0; /* normal does not depend on i*/
-    }
+  for (i=0; i<DIM; i++) {
+    x[i] = rl[i] - rk[i];
+    y[i] = rm[i] - rk[i];
   }
 
-  /* the following is standard method to compute the derivatives of x cross y */
-
   /* cross product */
-  cross(x, y, p);
+  p[0] = x[1]*y[2] - x[2]*y[1];
+  p[1] = x[2]*y[0] - x[0]*y[2];
+  p[2] = x[0]*y[1] - x[1]*y[0];
+
   q = sqrt(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]);
 
-  /* normal */
-  normal[0] = p[0]/q;
-  normal[1] = p[1]/q;
-  normal[2] = p[2]/q;
+  /* normalized cross */
+  cross[0] = p[0]/q;
+  cross[1] = p[1]/q;
+  cross[2] = p[2]/q;
 
   /* compute derivatives */
   /* derivative of inverse q (i.e. 1/q) w.r.t x and y*/
@@ -825,36 +903,36 @@ static void normal(model_buffer *const buffer, const int i, int *const nbi1,
   d_invq_d_y1 = ( p[0]*x[2]             - p[2]*x[0])/q_cubic;
   d_invq_d_y2 = (-p[0]*x[1] + p[1]*x[0]            )/q_cubic;
 
-  /* dn/drl transposed */
-  dn_drl[0][0] =           p[0]*d_invq_d_x0;
-  dn_drl[0][1] = -y[2]/q + p[1]*d_invq_d_x0;
-  dn_drl[0][2] =  y[1]/q + p[2]*d_invq_d_x0;
+  /* dcross/drl transposed */
+  dcross_drl[0][0] =           p[0]*d_invq_d_x0;
+  dcross_drl[0][1] = -y[2]/q + p[1]*d_invq_d_x0;
+  dcross_drl[0][2] =  y[1]/q + p[2]*d_invq_d_x0;
 
-  dn_drl[1][0] =  y[2]/q + p[0]*d_invq_d_x1;
-  dn_drl[1][1] =           p[1]*d_invq_d_x1;
-  dn_drl[1][2] = -y[0]/q + p[2]*d_invq_d_x1;
+  dcross_drl[1][0] =  y[2]/q + p[0]*d_invq_d_x1;
+  dcross_drl[1][1] =           p[1]*d_invq_d_x1;
+  dcross_drl[1][2] = -y[0]/q + p[2]*d_invq_d_x1;
 
-  dn_drl[2][0] = -y[1]/q + p[0]*d_invq_d_x2;
-  dn_drl[2][1] =  y[0]/q + p[1]*d_invq_d_x2;
-  dn_drl[2][2] =           p[2]*d_invq_d_x2;
+  dcross_drl[2][0] = -y[1]/q + p[0]*d_invq_d_x2;
+  dcross_drl[2][1] =  y[0]/q + p[1]*d_invq_d_x2;
+  dcross_drl[2][2] =           p[2]*d_invq_d_x2;
 
-  /* dn/drm transposed */
-  dn_drm[0][0] =           p[0]*d_invq_d_y0;
-  dn_drm[0][1] =  x[2]/q + p[1]*d_invq_d_y0;
-  dn_drm[0][2] = -x[1]/q + p[2]*d_invq_d_y0;
+  /* dcross/drm transposed */
+  dcross_drm[0][0] =           p[0]*d_invq_d_y0;
+  dcross_drm[0][1] =  x[2]/q + p[1]*d_invq_d_y0;
+  dcross_drm[0][2] = -x[1]/q + p[2]*d_invq_d_y0;
 
-  dn_drm[1][0] = -x[2]/q + p[0]*d_invq_d_y1;
-  dn_drm[1][1] =           p[1]*d_invq_d_y1;
-  dn_drm[1][2] =  x[0]/q + p[2]*d_invq_d_y1;
+  dcross_drm[1][0] = -x[2]/q + p[0]*d_invq_d_y1;
+  dcross_drm[1][1] =           p[1]*d_invq_d_y1;
+  dcross_drm[1][2] =  x[0]/q + p[2]*d_invq_d_y1;
 
-  dn_drm[2][0] =  x[1]/q + p[0]*d_invq_d_y2;
-  dn_drm[2][1] = -x[0]/q + p[1]*d_invq_d_y2;
-  dn_drm[2][2] =           p[2]*d_invq_d_y2;
+  dcross_drm[2][0] =  x[1]/q + p[0]*d_invq_d_y2;
+  dcross_drm[2][1] = -x[0]/q + p[1]*d_invq_d_y2;
+  dcross_drm[2][2] =           p[2]*d_invq_d_y2;
 
-  /* dn/drk transposed */
-  for (j=0; j<DIM; j++) {
-    for (k=0; k<DIM; k++) {
-      dn_drk[j][k] = - (dn_drl[j][k] + dn_drm[j][k]);
+  /* dcross/drk transposed */
+  for (i=0; i<DIM; i++) {
+    for (j=0; j<DIM; j++) {
+      dcross_drk[i][j] = - (dcross_drl[i][j] + dcross_drm[i][j]);
     }
   }
 
@@ -896,24 +974,210 @@ static void get_drhosqij(const double rij[DIM], const double ni[DIM],
 
 /* derivartive of transverse decay function f(rho) w.r.t rho */
 static double td(double C0, double C2, double C4, double delta,
-    const double* rvec, double r, const double* n, double *const dtd)
+    const double* rvec, double r, const double* n, double *const rho_sq,
+    double *const dtd)
 {
   double n_dot_r;
-  double rho_sq;
   double del_sq;
   double rod_sq;
   double td;
 
   n_dot_r = dot(n, rvec);
-  rho_sq = r*r - n_dot_r*n_dot_r;
+  *rho_sq = r*r - n_dot_r*n_dot_r;
   del_sq = delta*delta;
-  rod_sq = rho_sq/del_sq;
+  rod_sq = (*rho_sq)/del_sq;
   td = exp(-rod_sq) * (C0 + rod_sq*(C2 + rod_sq*C4));
   *dtd = -td/del_sq + exp(-rod_sq) * (C2 + 2*C4*rod_sq)/del_sq;
 
   return td;
 }
 
+
+/* derivartive of dihedral w.r.t rho, and atom positions */
+static double  dihedral(model_buffer *const buffer, double rhosq, const int i, const int j,
+  double *const d_drhosq, double d_dri[DIM], double d_drj[DIM],
+  double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
+  double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM])
+{
+  /* params */
+  int inter_idx;
+  double B;
+  double eta;
+  double delta;
+  double delsq;
+
+  int (*nearest3neigh)[3];
+  int k[3];
+  int l[3];
+  vectorDIM* coords;
+
+  /* local vars */
+  double dihe;
+  double D1;
+  double D2;
+  double epart1;
+  double epart2;
+  double epart3;
+  double cos_kl[3][3];          /* cos_omega_k1ijl1, cos_omega_k1ijl2 ...  */
+  double dcos_kl[3][3][4][DIM]; /* 4 indicates k, i, j, l, e.g. dcoskl[0][1][0] means
+                                dcos_omega_k1ijl2 / drk */
+  double d_dcos_kl[3][3];       /* deriv of dihedral w.r.t to cos_omega_kijl */
+  int m, n, dim;
+
+
+
+  /* get corresponding parameters */
+  inter_idx = param_index(buffer, i, j);
+  B = buffer->B[inter_idx];
+  eta = buffer->eta[inter_idx];
+  delta = buffer->delta[inter_idx];
+
+
+  /* unpack data from buffer */
+  nearest3neigh = buffer->nearest3neigh;
+  coords = buffer->coords;
+
+  /* 3 neighs of atoms i and j */
+  for (m=0; m<3; m++) {
+    k[m] = nearest3neigh[i][m];
+    l[m] = nearest3neigh[j][m];
+  }
+
+  /* cos_omega_kilj and the derivatives w.r.t coords */
+  for (m=0; m<3; m++) {
+    for (n=0; n<3; n++) {
+      deriv_cos_omega(coords[k[m]], coords[i], coords[j], coords[l[m]], cos_kl[m][n],
+        dcos_kl[m][n][0], dcos_kl[m][n][1], dcos_kl[m][n][2],dcos_kl[m][n][3]);
+    }
+  }
+
+  epart1 = exp(eta * cos_kl[0][0]*cos_kl[0][1]*cos_kl[0][2]);
+  epart2 = exp(eta * cos_kl[1][0]*cos_kl[1][1]*cos_kl[1][2]);
+  epart3 = exp(eta * cos_kl[2][0]*cos_kl[2][1]*cos_kl[2][2]);
+
+  D2 = epart1 + epart2 + epart3;
+
+  delsq = delta*delta;
+  D1 = B*exp(-rhosq/delsq);
+
+  /* dihedral energy */
+  dihe = D1*D2;
+
+  /* deriv w.r.t rhosq */
+  *d_drhosq = -dihe/delsq;
+
+  /* derivative of dihedral w.r.t cos_omega_kijl */
+  d_dcos_kl[0][0] = D1 *epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
+  d_dcos_kl[0][1] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
+  d_dcos_kl[0][2] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][1];
+  d_dcos_kl[1][0] = D1 *epart2 *eta *cos_kl[1][1]*cos_kl[1][2];
+  d_dcos_kl[1][1] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][2];
+  d_dcos_kl[1][2] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][1];
+  d_dcos_kl[2][0] = D1 *epart3 *eta *cos_kl[2][1]*cos_kl[2][2];
+  d_dcos_kl[2][1] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][2];
+  d_dcos_kl[2][2] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][1];
+
+  /* initialization to be zero and later add values */
+  for (dim=0; dim<DIM; dim++) {
+    d_drk1[dim] = 0.;
+    d_drk2[dim] = 0.;
+    d_drk3[dim] = 0.;
+    d_dri[dim] = 0.;
+    d_drj[dim] = 0.;
+    d_drl1[dim] = 0.;
+    d_drl2[dim] = 0.;
+    d_drl3[dim] = 0.;
+  }
+
+  for (m=0; m<3; m++) {
+    for (dim=0; dim<3; dim++) {
+      d_drk1[dim] += d_dcos_kl[0][m]*dcos_kl[0][m][0][dim];
+      d_drk2[dim] += d_dcos_kl[1][m]*dcos_kl[1][m][0][dim];
+      d_drk3[dim] += d_dcos_kl[2][m]*dcos_kl[2][m][0][dim];
+      d_drl1[dim] += d_dcos_kl[m][0]*dcos_kl[m][0][3][dim];
+      d_drl2[dim] += d_dcos_kl[m][1]*dcos_kl[m][1][3][dim];
+      d_drl3[dim] += d_dcos_kl[m][2]*dcos_kl[m][2][3][dim];
+    }
+    for (n=0; n<3; n++) {
+      for (dim=0; dim<3; dim++) {
+        d_dri[dim] += d_dcos_kl[m][n]*dcos_kl[m][n][1][dim];
+        d_drj[dim] += d_dcos_kl[m][n]*dcos_kl[m][n][2][dim];
+      }
+    }
+  }
+
+  return dihe;
+}
+
+
+
+/* compute cos(omega_kijl) and the derivateives */
+static void deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
+  double rl[DIM], double cos_omega, double dcos_drk[DIM], double dcos_dri[DIM],
+  double dcos_drj[DIM], double dcos_drl[DIM])
+
+{
+
+  double ejik[DIM];
+  double eijl[DIM];
+  double tmp1[DIM];
+  double tmp2[DIM];
+  double dejik_dri[DIM][DIM];
+  double dejik_drj[DIM][DIM];
+  double dejik_drk[DIM][DIM];
+  double deijl_dri[DIM][DIM];
+  double deijl_drj[DIM][DIM];
+  double deijl_drl[DIM][DIM];
+
+
+  int m,n;
+
+
+  /* ejik and derivatives (Note the dejik_dri ... returned are actually the transpose) */
+  deriv_cross(ri, rj, rk, ejik, dejik_dri, dejik_drj, dejik_drk);
+  /* flip sign because deriv_cross computes rij cross rik, here we need rji cross rik*/
+  for (m=0; m<DIM; m++) {
+    ejik[m] = - ejik[m];
+    for (n=0; n<DIM; n++) {
+      dejik_dri[m][n] = - dejik_dri[m][n];
+      dejik_drj[m][n] = - dejik_drj[m][n];
+      dejik_drk[m][n] = - dejik_drk[m][n];
+    }
+  }
+
+  /* eijk and derivatives */
+  deriv_cross(rj, ri, rl, eijl, deijl_drj, deijl_dri, deijl_drl);
+  /* flip sign */
+  for (m=0; m<DIM; m++) {
+    eijl[m] = - eijl[m];
+    for (n=0; n<DIM; n++) {
+      deijl_drj[m][n] = - deijl_drj[m][n];
+      deijl_dri[m][n] = - deijl_dri[m][n];
+      deijl_drl[m][n] = - deijl_drl[m][n];
+    }
+  }
+
+  /* dcos_drk */
+  mat_dot_vec(dejik_drk, eijl, dcos_drk);
+
+  /* dcos_dri */
+  mat_dot_vec(dejik_dri, eijl, tmp1);
+  mat_dot_vec(deijl_dri, ejik, tmp2);
+  for (m=0; m<DIM; m++) {
+    dcos_dri[m] = tmp1[m] + tmp2[m];
+  }
+
+  /* dcos_drj */
+  mat_dot_vec(dejik_drj, eijl, tmp1);
+  mat_dot_vec(deijl_drj, ejik, tmp2);
+  for (m=0; m<DIM; m++) {
+    dcos_drj[m] = tmp1[m] + tmp2[m];
+  }
+
+  /* dcos drl */
+  mat_dot_vec(deijl_drl, ejik, dcos_drl);
+
+}
 
 
 /* tap */
@@ -1020,6 +1284,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   double* model_lambda;
   double* model_A;
   double* model_z0;
+  double* model_B;
+  double* model_eta;
 
   model_buffer* buffer;
   double* cutoff;
@@ -1072,6 +1338,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   model_lambda = (double*) malloc(nInteract*sizeof(double));
   model_A      = (double*) malloc(nInteract*sizeof(double));
   model_z0     = (double*) malloc(nInteract*sizeof(double));
+  model_eta     = (double*) malloc(nInteract*sizeof(double));
+  model_B     = (double*) malloc(nInteract*sizeof(double));
   model_cutoff = (double*) malloc(nInteract*sizeof(double));
   if (model_C0==NULL
       || model_C2==NULL
@@ -1081,6 +1349,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
       || model_lambda==NULL
       || model_A==NULL
       || model_z0==NULL
+      || model_eta==NULL
+      || model_B==NULL
       || model_cutoff==NULL) {
     ier = KIM_STATUS_FAIL;
     KIM_API_report_error(__LINE__, __FILE__, "malloc", ier);
@@ -1089,7 +1359,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
 
   /* read parameters */
   for (i=0; i< nInteract; ++i) {
-    ier = fscanf(fid, "%lf %lf %lf %lf %lf %lf %lf %lf %lf\n",
+    ier = fscanf(fid, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",
         &model_C0[i],
         &model_C2[i],
         &model_C4[i],
@@ -1098,6 +1368,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
         &model_lambda[i],
         &model_A[i],
         &model_z0[i],
+        &model_B[i],
+        &model_eta[i],
         &model_cutoff[i]);
     /* check that we read the right number of parameters */
     if (9 != ier) {
@@ -1147,7 +1419,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   }
 
   /* store parameters in KIM object */
-  KIM_API_setm_data(pkim, &ier, 9*4,
+  KIM_API_setm_data(pkim, &ier, 11*4,
       "PARAM_FREE_cutoff",    nInteract,  model_cutoff,  1,
       "PARAM_FREE_C0",        nInteract,  model_C0,      1,
       "PARAM_FREE_C2",        nInteract,  model_C2,      1,
@@ -1156,7 +1428,9 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
       "PARAM_FREE_delta",     nInteract,  model_delta,   1,
       "PARAM_FREE_lambda",    nInteract,  model_lambda,  1,
       "PARAM_FREE_A",         nInteract,  model_A,       1,
-      "PARAM_FREE_z0",        nInteract,  model_z0,      1);
+      "PARAM_FREE_z0",        nInteract,  model_z0,      1,
+      "PARAM_FREE_B",        nInteract,   model_B,      1,
+      "PARAM_FREE_eta",        nInteract, model_eta,      1);
   if (KIM_STATUS_OK > ier) {
     KIM_API_report_error(__LINE__, __FILE__, "KIM_API_setm_data", ier);
     return ier;
@@ -1181,6 +1455,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   buffer->lambda = model_lambda;
   buffer->A      = model_A;
   buffer->z0     = model_z0;
+  buffer->B     = model_B;
+  buffer->eta     = model_eta;
   /* end setup buffer */
 
   /* store in model buffer */
@@ -1258,6 +1534,8 @@ static int destroy(void *km)
   free(buffer->lambda);
   free(buffer->A);
   free(buffer->z0);
+  free(buffer->B);
+  free(buffer->eta);
 
   /* destroy the buffer */
   free(buffer);
