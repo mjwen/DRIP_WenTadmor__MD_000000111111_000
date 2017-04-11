@@ -123,9 +123,6 @@ static void normal(model_buffer *const buffer, const int i, int *const nbi1,
     int *const nbi2, int *const nbi3, double normal[DIM], double dn_dri[DIM][DIM],
     double dn_drk[DIM][DIM], double dn_drl[DIM][DIM], double dn_drm[DIM][DIM]);
 
-static void deriv_cross(double rk[DIM], double rl[DIM], double rm[DIM], double cross[DIM],
-    double dcross_drk[DIM][DIM], double dcross_drl[DIM][DIM], double dcross_drm[DIM][DIM]);
-
 static double td(double C0, double C2, double C4, double delta,
     const double* rvec, double r, const double* n,  double *const rho_sq,
     double *const dtd);
@@ -142,8 +139,8 @@ static double  dihedral(model_buffer *const buffer, double rhosq, const int i, c
     double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
     double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM]);
 
-static void deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
-  double rl[DIM], double cos_omega, double dcos_drk[DIM], double dcos_dri[DIM],
+static double deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
+  double rl[DIM], double dcos_drk[DIM], double dcos_dri[DIM],
   double dcos_drj[DIM], double dcos_drl[DIM]);
 
 
@@ -157,8 +154,11 @@ static int param_index(model_buffer* const buffer, const int i, const int j);
 
 double dot(const double x[DIM], const double y[DIM]);
 
-static void cross(const double x[DIM], const double y[DIM], double rslt[DIM]);
+static void deriv_cross(double rk[DIM], double rl[DIM], double rm[DIM], double cross[DIM],
+    double dcross_drk[DIM][DIM], double dcross_drl[DIM][DIM], double dcross_drm[DIM][DIM]);
 
+/*static void cross(const double x[DIM], const double y[DIM], double rslt[DIM]);
+*/
 static void mat_dot_vec(double X[DIM][DIM], const double y[DIM], double z[DIM]);
 
 
@@ -742,10 +742,9 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
 
   /* dihedral angle function and its derivateives */
   gij = dihedral(buffer, rhosqij, i, j, &dgij_drhosq, dgij_dri, dgij_drj,
-      dgij_drk1, dgij_drk2, dgij_drk3,dgij_drl1, dgij_drl2, dgij_drl3);
+      dgij_drk1, dgij_drk2, dgij_drk3, dgij_drl1, dgij_drl2, dgij_drl3);
   gji = dihedral(buffer, rhosqji, j, i, &dgji_drhosq, dgji_drj, dgji_dri,
       dgji_drl1, dgji_drl2, dgji_drl3, dgji_drk1, dgji_drk2, dgji_drk3);
-
 
   V2 = C + tdij + tdji + gij + gji;
 
@@ -777,6 +776,7 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
       forces[j][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drj[k]
           + (dtdji+dgji_drhosq)*drhosqji_drj[k] + dgij_drj[k] + dgji_drj[k] );
 
+
       /* derivative of V2 contribute to neighs of atom i */
       forces[nbi1][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drnb1[k]
           + dgij_drk1[k] + dgji_drk1[k] );
@@ -792,6 +792,7 @@ static double calc_repulsive(model_buffer *const buffer, const int i, const int 
           + dgij_drl2[k] + dgji_drl2[k]);
       forces[nbj3][k] -= HALF*tp*V1* ( (dtdji+dgji_drhosq)*drhosqji_drnb3[k]
           + dgij_drl3[k] + dgji_drl3[k]);
+
     }
   }
 
@@ -847,7 +848,326 @@ static void normal(model_buffer *const buffer, const int i, int *const k1,
   }
 
   /* get normal and derives of normal w.r.t to neighbors of  */
-  deriv_cross(coords[*k1], coords[*k2], coords[*k3], normal, dn_drk1, dn_drk2, dn_drk2);
+  deriv_cross(coords[*k1], coords[*k2], coords[*k3], normal, dn_drk1, dn_drk2, dn_drk3);
+}
+
+
+static void get_drhosqij(const double rij[DIM], const double ni[DIM],
+    double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
+    double dni_drn2[DIM][DIM], double dni_drn3[DIM][DIM],
+    double drhosq_dri[DIM], double drhosq_drj[DIM],
+    double drhosq_drn1[DIM], double drhosq_drn2[DIM],
+    double drhosq_drn3[DIM])
+{
+
+  int k;
+  double ni_dot_rij = 0;
+  double dni_dri_dot_rij[DIM];
+  double dni_drn1_dot_rij[DIM];
+  double dni_drn2_dot_rij[DIM];
+  double dni_drn3_dot_rij[DIM];
+
+  ni_dot_rij = dot(ni, rij);
+  mat_dot_vec(dni_dri, rij, dni_dri_dot_rij);
+  mat_dot_vec(dni_drn1, rij, dni_drn1_dot_rij);
+  mat_dot_vec(dni_drn2, rij, dni_drn2_dot_rij);
+  mat_dot_vec(dni_drn3, rij, dni_drn3_dot_rij);
+
+  for (k=0; k<DIM; k++) {
+    drhosq_dri[k] = -2*rij[k] -2*ni_dot_rij * (-ni[k] + dni_dri_dot_rij[k]);
+    drhosq_drj[k] = 2*rij[k] - 2*ni_dot_rij*ni[k];
+    drhosq_drn1[k] = -2*ni_dot_rij * dni_drn1_dot_rij[k];
+    drhosq_drn2[k] = -2*ni_dot_rij * dni_drn2_dot_rij[k];
+    drhosq_drn3[k] = -2*ni_dot_rij * dni_drn3_dot_rij[k];
+  }
+
+}
+
+
+
+/* derivartive of transverse decay function f(rho) w.r.t rho */
+static double td(double C0, double C2, double C4, double delta,
+    const double* rvec, double r, const double* n, double *const rho_sq,
+    double *const dtd)
+{
+  double n_dot_r;
+  double del_sq;
+  double rod_sq;
+  double td;
+
+  n_dot_r = dot(n, rvec);
+  *rho_sq = r*r - n_dot_r*n_dot_r;
+  del_sq = delta*delta;
+  rod_sq = (*rho_sq)/del_sq;
+  td = exp(-rod_sq) * (C0 + rod_sq*(C2 + rod_sq*C4));
+  *dtd = -td/del_sq + exp(-rod_sq) * (C2 + 2*C4*rod_sq)/del_sq;
+
+  return td;
+}
+
+
+/* derivartive of dihedral angle func gij w.r.t rho, and atom positions */
+static double dihedral(model_buffer *const buffer, double rhosq, const int i, const int j,
+    double *const d_drhosq, double d_dri[DIM], double d_drj[DIM],
+    double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
+    double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM])
+{
+  /* params */
+  int inter_idx;
+  double B;
+  double eta;
+  double delta;
+  double delsq;
+
+  int (*nearest3neigh)[3];
+  int k[3];
+  int l[3];
+  vectorDIM* coords;
+
+  /* local vars */
+  double dihe;
+  double D1;
+  double D2;
+  double epart1;
+  double epart2;
+  double epart3;
+  double cos_kl[3][3];          /* cos_omega_k1ijl1, cos_omega_k1ijl2 ...  */
+  double d_dcos_kl[3][3];       /* deriv of dihedral w.r.t to cos_omega_kijl */
+  double dcos_kl[3][3][4][DIM]; /* 4 indicates k, i, j, l, e.g. dcoskl[0][1][0] means
+                                dcos_omega_k1ijl2 / drk */
+  int m, n, dim;
+
+
+  /* get corresponding parameters */
+  inter_idx = param_index(buffer, i, j);
+  B = buffer->B[inter_idx];
+  eta = buffer->eta[inter_idx];
+  delta = buffer->delta[inter_idx];
+
+
+  /* unpack data from buffer */
+  nearest3neigh = buffer->nearest3neigh;
+  coords = buffer->coords;
+
+  /* 3 neighs of atoms i and j */
+  for (m=0; m<3; m++) {
+    k[m] = nearest3neigh[i][m];
+    l[m] = nearest3neigh[j][m];
+  }
+
+  /* cos_omega_kijl and the derivatives w.r.t coords */
+  for (m=0; m<3; m++) {
+    for (n=0; n<3; n++) {
+      cos_kl[m][n] = deriv_cos_omega(coords[k[m]], coords[i], coords[j], coords[l[n]],
+          dcos_kl[m][n][0], dcos_kl[m][n][1], dcos_kl[m][n][2], dcos_kl[m][n][3]);
+    }
+  }
+
+  epart1 = exp(eta * cos_kl[0][0]*cos_kl[0][1]*cos_kl[0][2]);
+  epart2 = exp(eta * cos_kl[1][0]*cos_kl[1][1]*cos_kl[1][2]);
+  epart3 = exp(eta * cos_kl[2][0]*cos_kl[2][1]*cos_kl[2][2]);
+  D2 = epart1 + epart2 + epart3;
+
+  delsq = delta*delta;
+  D1 = B*exp(-rhosq/delsq);
+
+  /* dihedral energy */
+  dihe = D1*D2;
+
+  /* deriv of dihedral w.r.t rhosq */
+  *d_drhosq = -dihe/delsq;
+
+  /* deriv of dihedral w.r.t cos_omega_kijl */
+  d_dcos_kl[0][0] = D1 *epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
+  d_dcos_kl[0][1] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
+  d_dcos_kl[0][2] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][1];
+  d_dcos_kl[1][0] = D1 *epart2 *eta *cos_kl[1][1]*cos_kl[1][2];
+  d_dcos_kl[1][1] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][2];
+  d_dcos_kl[1][2] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][1];
+  d_dcos_kl[2][0] = D1 *epart3 *eta *cos_kl[2][1]*cos_kl[2][2];
+  d_dcos_kl[2][1] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][2];
+  d_dcos_kl[2][2] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][1];
+
+  /* initialization to be zero and later add values */
+  for (dim=0; dim<DIM; dim++) {
+    d_drk1[dim] = 0.;
+    d_drk2[dim] = 0.;
+    d_drk3[dim] = 0.;
+    d_dri[dim] = 0.;
+    d_drj[dim] = 0.;
+    d_drl1[dim] = 0.;
+    d_drl2[dim] = 0.;
+    d_drl3[dim] = 0.;
+  }
+
+  for (m=0; m<3; m++) {
+    for (dim=0; dim<3; dim++) {
+      d_drk1[dim] += d_dcos_kl[0][m]*dcos_kl[0][m][0][dim];
+      d_drk2[dim] += d_dcos_kl[1][m]*dcos_kl[1][m][0][dim];
+      d_drk3[dim] += d_dcos_kl[2][m]*dcos_kl[2][m][0][dim];
+      d_drl1[dim] += d_dcos_kl[m][0]*dcos_kl[m][0][3][dim];
+      d_drl2[dim] += d_dcos_kl[m][1]*dcos_kl[m][1][3][dim];
+      d_drl3[dim] += d_dcos_kl[m][2]*dcos_kl[m][2][3][dim];
+    }
+    for (n=0; n<3; n++) {
+      for (dim=0; dim<3; dim++) {
+        d_dri[dim] += d_dcos_kl[m][n]*dcos_kl[m][n][1][dim];
+        d_drj[dim] += d_dcos_kl[m][n]*dcos_kl[m][n][2][dim];
+      }
+    }
+  }
+
+  return dihe;
+}
+
+
+
+/* compute cos(omega_kijl) and the derivateives */
+static double deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
+    double rl[DIM], double dcos_drk[DIM], double dcos_dri[DIM], double dcos_drj[DIM],
+    double dcos_drl[DIM])
+
+{
+
+  double ejik[DIM];
+  double eijl[DIM];
+  double tmp1[DIM];
+  double tmp2[DIM];
+  double dejik_dri[DIM][DIM];
+  double dejik_drj[DIM][DIM];
+  double dejik_drk[DIM][DIM];
+  double deijl_dri[DIM][DIM];
+  double deijl_drj[DIM][DIM];
+  double deijl_drl[DIM][DIM];
+
+  double cos_omega;
+
+  int m,n;
+
+
+  /* ejik and derivatives (Note the dejik_dri ... returned are actually the transpose) */
+  deriv_cross(ri, rj, rk, ejik, dejik_dri, dejik_drj, dejik_drk);
+  /* flip sign because deriv_cross computes rij cross rik, here we need rji cross rik*/
+  for (m=0; m<DIM; m++) {
+    ejik[m] = - ejik[m];
+    for (n=0; n<DIM; n++) {
+      dejik_dri[m][n] = - dejik_dri[m][n];
+      dejik_drj[m][n] = - dejik_drj[m][n];
+      dejik_drk[m][n] = - dejik_drk[m][n];
+    }
+  }
+
+  /* eijl and derivatives */
+  deriv_cross(rj, ri, rl, eijl, deijl_drj, deijl_dri, deijl_drl);
+  /* flip sign */
+  for (m=0; m<DIM; m++) {
+    eijl[m] = - eijl[m];
+    for (n=0; n<DIM; n++) {
+      deijl_drj[m][n] = - deijl_drj[m][n];
+      deijl_dri[m][n] = - deijl_dri[m][n];
+      deijl_drl[m][n] = - deijl_drl[m][n];
+    }
+  }
+
+  /* dcos_drk */
+  mat_dot_vec(dejik_drk, eijl, dcos_drk);
+  /* dcos_dri */
+  mat_dot_vec(dejik_dri, eijl, tmp1);
+  mat_dot_vec(deijl_dri, ejik, tmp2);
+  for (m=0; m<DIM; m++) {
+    dcos_dri[m] = tmp1[m] + tmp2[m];
+  }
+  /* dcos_drj */
+  mat_dot_vec(dejik_drj, eijl, tmp1);
+  mat_dot_vec(deijl_drj, ejik, tmp2);
+  for (m=0; m<DIM; m++) {
+    dcos_drj[m] = tmp1[m] + tmp2[m];
+  }
+  /* dcos drl */
+  mat_dot_vec(deijl_drl, ejik, dcos_drl);
+
+  /* cos_oemga_kijl */
+  cos_omega = dot(ejik, eijl);
+
+  return cos_omega;
+}
+
+
+/* tap */
+static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap)
+{
+  int inter_idx;
+  double cutoff;
+  double roc;
+  double roc_sq;
+  double t;
+
+  inter_idx = param_index(buffer, i, j);
+  cutoff = buffer->cutoff[inter_idx];
+
+  roc = r/cutoff;
+  roc_sq = roc*roc;
+  t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
+  *dtap = roc_sq*roc_sq* (-140.0/r + 420.0/cutoff + roc_sq* (-420.0/r + 140.0/cutoff));
+
+  return t;
+}
+
+
+
+
+
+/* helper functions */
+
+/* parameters index */
+static int param_index(model_buffer* const buffer, const int i, const int j)
+{
+  int iSpecies;
+  int jSpecies;
+  int index;
+
+  iSpecies = buffer->particleSpecies[i];
+  jSpecies = buffer->particleSpecies[j];
+  if (iSpecies == SPEC1 && jSpecies == SPEC1) {
+    index = 0;
+  } else {
+    printf("KIM error, param_index\n");
+    exit(0);
+  }
+
+  return index;
+}
+
+
+/* relative position vector and squared distance */
+static double rsq_rij(model_buffer* const buffer, const int i, const int j,
+    double *const rij)
+{
+  double rsq;
+  vectorDIM* coords = buffer->coords;
+
+  rij[0] = coords[j][0] - coords[i][0];
+  rij[1] = coords[j][1] - coords[i][1];
+  rij[2] = coords[j][2] - coords[i][2];
+  rsq = rij[0]*rij[0] + rij[1]*rij[1] + rij[2]*rij[2];
+
+  return rsq;
+}
+
+
+/* dot product of two vector */
+double dot(const double x[DIM], const double y[DIM])
+{
+  return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+}
+
+/* matrix dot product a vector, return a vector */
+static void mat_dot_vec(double X[DIM][DIM], const double y[DIM], double z[DIM])
+{
+  int k;
+  for (k=0; k<DIM; k++) {
+    z[k] = X[k][0]*y[0] + X[k][1]*y[1] + X[k][2]*y[2];
+  }
 }
 
 
@@ -939,331 +1259,14 @@ static void deriv_cross(double rk[DIM], double rl[DIM], double rm[DIM], double c
 }
 
 
-static void get_drhosqij(const double rij[DIM], const double ni[DIM],
-    double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
-    double dni_drn2[DIM][DIM], double dni_drn3[DIM][DIM],
-    double drhosq_dri[DIM], double drhosq_drj[DIM],
-    double drhosq_drn1[DIM], double drhosq_drn2[DIM],
-    double drhosq_drn3[DIM])
-{
-
-  int k;
-  double ni_dot_rij = 0;
-  double dni_dri_dot_rij[DIM];
-  double dni_drn1_dot_rij[DIM];
-  double dni_drn2_dot_rij[DIM];
-  double dni_drn3_dot_rij[DIM];
-
-  ni_dot_rij = dot(ni, rij);
-  mat_dot_vec(dni_dri, rij, dni_dri_dot_rij);
-  mat_dot_vec(dni_drn1, rij, dni_drn1_dot_rij);
-  mat_dot_vec(dni_drn2, rij, dni_drn2_dot_rij);
-  mat_dot_vec(dni_drn3, rij, dni_drn3_dot_rij);
-
-  for (k=0; k<DIM; k++) {
-    drhosq_dri[k] = -2*rij[k] -2*ni_dot_rij * (-ni[k] + dni_dri_dot_rij[k]);
-    drhosq_drj[k] = 2*rij[k] - 2*ni_dot_rij*ni[k];
-    drhosq_drn1[k] = -2*ni_dot_rij * dni_drn1_dot_rij[k];
-    drhosq_drn2[k] = -2*ni_dot_rij * dni_drn2_dot_rij[k];
-    drhosq_drn3[k] = -2*ni_dot_rij * dni_drn3_dot_rij[k];
-  }
-
-}
-
-
-
-/* derivartive of transverse decay function f(rho) w.r.t rho */
-static double td(double C0, double C2, double C4, double delta,
-    const double* rvec, double r, const double* n, double *const rho_sq,
-    double *const dtd)
-{
-  double n_dot_r;
-  double del_sq;
-  double rod_sq;
-  double td;
-
-  n_dot_r = dot(n, rvec);
-  *rho_sq = r*r - n_dot_r*n_dot_r;
-  del_sq = delta*delta;
-  rod_sq = (*rho_sq)/del_sq;
-  td = exp(-rod_sq) * (C0 + rod_sq*(C2 + rod_sq*C4));
-  *dtd = -td/del_sq + exp(-rod_sq) * (C2 + 2*C4*rod_sq)/del_sq;
-
-  return td;
-}
-
-
-/* derivartive of dihedral w.r.t rho, and atom positions */
-static double  dihedral(model_buffer *const buffer, double rhosq, const int i, const int j,
-  double *const d_drhosq, double d_dri[DIM], double d_drj[DIM],
-  double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
-  double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM])
-{
-  /* params */
-  int inter_idx;
-  double B;
-  double eta;
-  double delta;
-  double delsq;
-
-  int (*nearest3neigh)[3];
-  int k[3];
-  int l[3];
-  vectorDIM* coords;
-
-  /* local vars */
-  double dihe;
-  double D1;
-  double D2;
-  double epart1;
-  double epart2;
-  double epart3;
-  double cos_kl[3][3];          /* cos_omega_k1ijl1, cos_omega_k1ijl2 ...  */
-  double dcos_kl[3][3][4][DIM]; /* 4 indicates k, i, j, l, e.g. dcoskl[0][1][0] means
-                                dcos_omega_k1ijl2 / drk */
-  double d_dcos_kl[3][3];       /* deriv of dihedral w.r.t to cos_omega_kijl */
-  int m, n, dim;
-
-
-
-  /* get corresponding parameters */
-  inter_idx = param_index(buffer, i, j);
-  B = buffer->B[inter_idx];
-  eta = buffer->eta[inter_idx];
-  delta = buffer->delta[inter_idx];
-
-
-  /* unpack data from buffer */
-  nearest3neigh = buffer->nearest3neigh;
-  coords = buffer->coords;
-
-  /* 3 neighs of atoms i and j */
-  for (m=0; m<3; m++) {
-    k[m] = nearest3neigh[i][m];
-    l[m] = nearest3neigh[j][m];
-  }
-
-  /* cos_omega_kilj and the derivatives w.r.t coords */
-  for (m=0; m<3; m++) {
-    for (n=0; n<3; n++) {
-      deriv_cos_omega(coords[k[m]], coords[i], coords[j], coords[l[m]], cos_kl[m][n],
-        dcos_kl[m][n][0], dcos_kl[m][n][1], dcos_kl[m][n][2],dcos_kl[m][n][3]);
-    }
-  }
-
-  epart1 = exp(eta * cos_kl[0][0]*cos_kl[0][1]*cos_kl[0][2]);
-  epart2 = exp(eta * cos_kl[1][0]*cos_kl[1][1]*cos_kl[1][2]);
-  epart3 = exp(eta * cos_kl[2][0]*cos_kl[2][1]*cos_kl[2][2]);
-
-  D2 = epart1 + epart2 + epart3;
-
-  delsq = delta*delta;
-  D1 = B*exp(-rhosq/delsq);
-
-  /* dihedral energy */
-  dihe = D1*D2;
-
-  /* deriv w.r.t rhosq */
-  *d_drhosq = -dihe/delsq;
-
-  /* derivative of dihedral w.r.t cos_omega_kijl */
-  d_dcos_kl[0][0] = D1 *epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
-  d_dcos_kl[0][1] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
-  d_dcos_kl[0][2] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][1];
-  d_dcos_kl[1][0] = D1 *epart2 *eta *cos_kl[1][1]*cos_kl[1][2];
-  d_dcos_kl[1][1] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][2];
-  d_dcos_kl[1][2] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][1];
-  d_dcos_kl[2][0] = D1 *epart3 *eta *cos_kl[2][1]*cos_kl[2][2];
-  d_dcos_kl[2][1] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][2];
-  d_dcos_kl[2][2] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][1];
-
-  /* initialization to be zero and later add values */
-  for (dim=0; dim<DIM; dim++) {
-    d_drk1[dim] = 0.;
-    d_drk2[dim] = 0.;
-    d_drk3[dim] = 0.;
-    d_dri[dim] = 0.;
-    d_drj[dim] = 0.;
-    d_drl1[dim] = 0.;
-    d_drl2[dim] = 0.;
-    d_drl3[dim] = 0.;
-  }
-
-  for (m=0; m<3; m++) {
-    for (dim=0; dim<3; dim++) {
-      d_drk1[dim] += d_dcos_kl[0][m]*dcos_kl[0][m][0][dim];
-      d_drk2[dim] += d_dcos_kl[1][m]*dcos_kl[1][m][0][dim];
-      d_drk3[dim] += d_dcos_kl[2][m]*dcos_kl[2][m][0][dim];
-      d_drl1[dim] += d_dcos_kl[m][0]*dcos_kl[m][0][3][dim];
-      d_drl2[dim] += d_dcos_kl[m][1]*dcos_kl[m][1][3][dim];
-      d_drl3[dim] += d_dcos_kl[m][2]*dcos_kl[m][2][3][dim];
-    }
-    for (n=0; n<3; n++) {
-      for (dim=0; dim<3; dim++) {
-        d_dri[dim] += d_dcos_kl[m][n]*dcos_kl[m][n][1][dim];
-        d_drj[dim] += d_dcos_kl[m][n]*dcos_kl[m][n][2][dim];
-      }
-    }
-  }
-
-  return dihe;
-}
-
-
-
-/* compute cos(omega_kijl) and the derivateives */
-static void deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
-  double rl[DIM], double cos_omega, double dcos_drk[DIM], double dcos_dri[DIM],
-  double dcos_drj[DIM], double dcos_drl[DIM])
-
-{
-
-  double ejik[DIM];
-  double eijl[DIM];
-  double tmp1[DIM];
-  double tmp2[DIM];
-  double dejik_dri[DIM][DIM];
-  double dejik_drj[DIM][DIM];
-  double dejik_drk[DIM][DIM];
-  double deijl_dri[DIM][DIM];
-  double deijl_drj[DIM][DIM];
-  double deijl_drl[DIM][DIM];
-
-
-  int m,n;
-
-
-  /* ejik and derivatives (Note the dejik_dri ... returned are actually the transpose) */
-  deriv_cross(ri, rj, rk, ejik, dejik_dri, dejik_drj, dejik_drk);
-  /* flip sign because deriv_cross computes rij cross rik, here we need rji cross rik*/
-  for (m=0; m<DIM; m++) {
-    ejik[m] = - ejik[m];
-    for (n=0; n<DIM; n++) {
-      dejik_dri[m][n] = - dejik_dri[m][n];
-      dejik_drj[m][n] = - dejik_drj[m][n];
-      dejik_drk[m][n] = - dejik_drk[m][n];
-    }
-  }
-
-  /* eijk and derivatives */
-  deriv_cross(rj, ri, rl, eijl, deijl_drj, deijl_dri, deijl_drl);
-  /* flip sign */
-  for (m=0; m<DIM; m++) {
-    eijl[m] = - eijl[m];
-    for (n=0; n<DIM; n++) {
-      deijl_drj[m][n] = - deijl_drj[m][n];
-      deijl_dri[m][n] = - deijl_dri[m][n];
-      deijl_drl[m][n] = - deijl_drl[m][n];
-    }
-  }
-
-  /* dcos_drk */
-  mat_dot_vec(dejik_drk, eijl, dcos_drk);
-
-  /* dcos_dri */
-  mat_dot_vec(dejik_dri, eijl, tmp1);
-  mat_dot_vec(deijl_dri, ejik, tmp2);
-  for (m=0; m<DIM; m++) {
-    dcos_dri[m] = tmp1[m] + tmp2[m];
-  }
-
-  /* dcos_drj */
-  mat_dot_vec(dejik_drj, eijl, tmp1);
-  mat_dot_vec(deijl_drj, ejik, tmp2);
-  for (m=0; m<DIM; m++) {
-    dcos_drj[m] = tmp1[m] + tmp2[m];
-  }
-
-  /* dcos drl */
-  mat_dot_vec(deijl_drl, ejik, dcos_drl);
-
-}
-
-
-/* tap */
-static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap)
-{
-  int inter_idx;
-  double cutoff;
-  double roc;
-  double roc_sq;
-  double t;
-
-  inter_idx = param_index(buffer, i, j);
-  cutoff = buffer->cutoff[inter_idx];
-
-  roc = r/cutoff;
-  roc_sq = roc*roc;
-  t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
-  *dtap = roc_sq*roc_sq* (-140.0/r + 420.0/cutoff + roc_sq* (-420.0/r + 140.0/cutoff));
-
-  return t;
-}
-
-
-
-
-
-/* helper functions */
-
-/* parameters index */
-static int param_index(model_buffer* const buffer, const int i, const int j)
-{
-  int iSpecies;
-  int jSpecies;
-  int index;
-
-  iSpecies = buffer->particleSpecies[i];
-  jSpecies = buffer->particleSpecies[j];
-  if (iSpecies == SPEC1 && jSpecies == SPEC1) {
-    index = 0;
-  } else {
-    printf("KIM error, param_index\n");
-    exit(0);
-  }
-
-  return index;
-}
-
-
-/* relative position vector and squared distance */
-static double rsq_rij(model_buffer* const buffer, const int i, const int j,
-    double *const rij)
-{
-  double rsq;
-  vectorDIM* coords = buffer->coords;
-
-  rij[0] = coords[j][0] - coords[i][0];
-  rij[1] = coords[j][1] - coords[i][1];
-  rij[2] = coords[j][2] - coords[i][2];
-  rsq = rij[0]*rij[0] + rij[1]*rij[1] + rij[2]*rij[2];
-
-  return rsq;
-}
-
-
-/* dot product of two vector */
-double dot(const double x[DIM], const double y[DIM])
-{
-  return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
-}
-
-/* matrix dot product a vector, return a vector */
-static void mat_dot_vec(double X[DIM][DIM], const double y[DIM], double z[DIM])
-{
-  int k;
-  for (k=0; k<DIM; k++) {
-    z[k] = X[k][0]*y[0] + X[k][1]*y[1] + X[k][2]*y[2];
-  }
-}
-
 /* cross product, z = x cross y */
-static void cross(const double x[DIM], const double y[DIM], double z[DIM])
+/*static void cross(const double x[DIM], const double y[DIM], double z[DIM])
 {
   z[0] = x[1]*y[2] - x[2]*y[1];
   z[1] = x[2]*y[0] - x[0]*y[2];
   z[2] = x[0]*y[1] - x[1]*y[0];
 }
+*/
 
 
 /* Initialization function */
@@ -1338,8 +1341,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   model_lambda = (double*) malloc(nInteract*sizeof(double));
   model_A      = (double*) malloc(nInteract*sizeof(double));
   model_z0     = (double*) malloc(nInteract*sizeof(double));
-  model_eta     = (double*) malloc(nInteract*sizeof(double));
-  model_B     = (double*) malloc(nInteract*sizeof(double));
+  model_B      = (double*) malloc(nInteract*sizeof(double));
+  model_eta    = (double*) malloc(nInteract*sizeof(double));
   model_cutoff = (double*) malloc(nInteract*sizeof(double));
   if (model_C0==NULL
       || model_C2==NULL
@@ -1349,8 +1352,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
       || model_lambda==NULL
       || model_A==NULL
       || model_z0==NULL
-      || model_eta==NULL
       || model_B==NULL
+      || model_eta==NULL
       || model_cutoff==NULL) {
     ier = KIM_STATUS_FAIL;
     KIM_API_report_error(__LINE__, __FILE__, "malloc", ier);
@@ -1372,7 +1375,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
         &model_eta[i],
         &model_cutoff[i]);
     /* check that we read the right number of parameters */
-    if (9 != ier) {
+    if (11 != ier) {
       ier = KIM_STATUS_FAIL;
       KIM_API_report_error(__LINE__, __FILE__, "corrupted parameter file", ier);
       return ier;
@@ -1429,8 +1432,8 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
       "PARAM_FREE_lambda",    nInteract,  model_lambda,  1,
       "PARAM_FREE_A",         nInteract,  model_A,       1,
       "PARAM_FREE_z0",        nInteract,  model_z0,      1,
-      "PARAM_FREE_B",        nInteract,   model_B,      1,
-      "PARAM_FREE_eta",        nInteract, model_eta,      1);
+      "PARAM_FREE_B",         nInteract,  model_B,       1,
+      "PARAM_FREE_eta",       nInteract,  model_eta,     1);
   if (KIM_STATUS_OK > ier) {
     KIM_API_report_error(__LINE__, __FILE__, "KIM_API_setm_data", ier);
     return ier;
