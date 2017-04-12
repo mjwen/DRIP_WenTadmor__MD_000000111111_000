@@ -147,6 +147,8 @@ static double deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
 
 static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap);
 
+static double tap_rho(double rhosq, double cut_rhosq, double *const drhosq);
+
 /* helper */
 static double rsq_rij(model_buffer* const buffer, const int i, const int j,
     double *const rij);
@@ -927,8 +929,10 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
 
   /* local vars */
   double dihe;
+  double D0;
   double D1;
   double D2;
+  double d_drhosq_tap;
   double epart1;
   double epart2;
   double epart3;
@@ -939,16 +943,36 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
   int m, n, dim;
 
 
+  /* NOTE this should be a params and read in from file */
+  double cut_rhosq = 1.2*1.2;
+
+  /* if larger than cutoff of rho, return 0 */
+  if (rhosq >= cut_rhosq) {
+    *d_drhosq = 0;
+    for (dim=0; dim<DIM; dim++) {
+      d_dri[dim] = 0;
+      d_drj[dim] = 0;
+      d_drk1[dim] = 0;
+      d_drk2[dim] = 0;
+      d_drk3[dim] = 0;
+      d_drl1[dim] = 0;
+      d_drl2[dim] = 0;
+      d_drl3[dim] = 0;
+    }
+    return 0;
+  }
+
+
   /* get corresponding parameters */
   inter_idx = param_index(buffer, i, j);
   B = buffer->B[inter_idx];
   eta = buffer->eta[inter_idx];
   delta2 = buffer->delta2[inter_idx];
 
-
   /* unpack data from buffer */
   nearest3neigh = buffer->nearest3neigh;
   coords = buffer->coords;
+
 
   /* 3 neighs of atoms i and j */
   for (m=0; m<3; m++) {
@@ -969,25 +993,29 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
   epart3 = exp(eta * cos_kl[2][0]*cos_kl[2][1]*cos_kl[2][2]);
   D2 = epart1 + epart2 + epart3;
 
+  /* exponential decay part */
   delsq = delta2*delta2;
   D1 = B*exp(-rhosq/delsq);
 
+  /* cutoff function */
+  D0 = tap_rho(rhosq, cut_rhosq, &d_drhosq_tap);
+
   /* dihedral energy */
-  dihe = D1*D2;
+  dihe = D0*D1*D2;
 
   /* deriv of dihedral w.r.t rhosq */
-  *d_drhosq = -dihe/delsq;
+  *d_drhosq = -dihe/delsq + d_drhosq_tap*D1*D2;
 
   /* deriv of dihedral w.r.t cos_omega_kijl */
-  d_dcos_kl[0][0] = D1 *epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
-  d_dcos_kl[0][1] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
-  d_dcos_kl[0][2] = D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][1];
-  d_dcos_kl[1][0] = D1 *epart2 *eta *cos_kl[1][1]*cos_kl[1][2];
-  d_dcos_kl[1][1] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][2];
-  d_dcos_kl[1][2] = D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][1];
-  d_dcos_kl[2][0] = D1 *epart3 *eta *cos_kl[2][1]*cos_kl[2][2];
-  d_dcos_kl[2][1] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][2];
-  d_dcos_kl[2][2] = D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][1];
+  d_dcos_kl[0][0] = D0* D1 *epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
+  d_dcos_kl[0][1] = D0* D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
+  d_dcos_kl[0][2] = D0* D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][1];
+  d_dcos_kl[1][0] = D0* D1 *epart2 *eta *cos_kl[1][1]*cos_kl[1][2];
+  d_dcos_kl[1][1] = D0* D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][2];
+  d_dcos_kl[1][2] = D0* D1 *epart2 *eta *cos_kl[1][0]*cos_kl[1][1];
+  d_dcos_kl[2][0] = D0* D1 *epart3 *eta *cos_kl[2][1]*cos_kl[2][2];
+  d_dcos_kl[2][1] = D0* D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][2];
+  d_dcos_kl[2][2] = D0* D1 *epart3 *eta *cos_kl[2][0]*cos_kl[2][1];
 
   /* initialization to be zero and later add values */
   for (dim=0; dim<DIM; dim++) {
@@ -1113,6 +1141,32 @@ static double tap(model_buffer* buffer, int i, int j, double r, double *const dt
 
   return t;
 }
+
+
+
+/* tap rho */
+static double tap_rho(double rhosq, double cut_rhosq, double *const drhosq)
+{
+  double rho;
+  double cut_rho;
+  double roc_sq;
+  double roc;
+  double t;
+  double drho;
+
+  rho = sqrt(rhosq);
+  cut_rho = sqrt(cut_rhosq);
+  roc_sq = rhosq/cut_rhosq;
+  roc = sqrt(roc_sq);
+  t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
+  drho = roc_sq*roc_sq* (-140.0/rho + 420.0/cut_rho + roc_sq* (-420.0/rho + 140.0/cut_rho));
+
+  /* d/dx^2 = d/dx / 2x */
+  *drhosq = drho/(2.*rho);
+
+  return t;
+}
+
 
 
 
