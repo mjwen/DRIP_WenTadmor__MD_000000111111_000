@@ -1006,6 +1006,7 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
   /* deriv of dihedral w.r.t rhosq */
   *d_drhosq = -dihe/delsq + d_drhosq_tap*D1*D2;
 
+
   /* deriv of dihedral w.r.t cos_omega_kijl */
   d_dcos_kl[0][0] = D0* D1 *epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
   d_dcos_kl[0][1] = D0* D1 *epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
@@ -1137,7 +1138,9 @@ static double tap(model_buffer* buffer, int i, int j, double r, double *const dt
   roc = r/cutoff;
   roc_sq = roc*roc;
   t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
-  *dtap = roc_sq*roc_sq* (-140.0/r + 420.0/cutoff + roc_sq* (-420.0/r + 140.0/cutoff));
+/*  *dtap = roc_sq*roc_sq* (-140.0/r + 420.0/cutoff + roc_sq* (-420.0/r + 140.0/cutoff));
+*/
+  *dtap = roc_sq*roc/cutoff* (-140.0 + 420.0*roc + roc_sq* (-420.0 + 140.0*roc));
 
   return t;
 }
@@ -1147,22 +1150,14 @@ static double tap(model_buffer* buffer, int i, int j, double r, double *const dt
 /* tap rho */
 static double tap_rho(double rhosq, double cut_rhosq, double *const drhosq)
 {
-  double rho;
-  double cut_rho;
   double roc_sq;
   double roc;
   double t;
-  double drho;
 
-  rho = sqrt(rhosq);
-  cut_rho = sqrt(cut_rhosq);
   roc_sq = rhosq/cut_rhosq;
   roc = sqrt(roc_sq);
   t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
-  drho = roc_sq*roc_sq* (-140.0/rho + 420.0/cut_rho + roc_sq* (-420.0/rho + 140.0/cut_rho));
-
-  /* d/dx^2 = d/dx / 2x */
-  *drhosq = drho/(2.*rho);
+  *drhosq = roc_sq/cut_rhosq* (-70.0 + 210.0*roc + roc_sq* (-210.0 + 70.0*roc));
 
   return t;
 }
