@@ -98,6 +98,7 @@ typedef struct {
   double* A;
   double* z0;
   double* B;
+  double* delta2;
   double* eta;
 } model_buffer;
 
@@ -916,7 +917,7 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
   int inter_idx;
   double B;
   double eta;
-  double delta;
+  double delta2;
   double delsq;
 
   int (*nearest3neigh)[3];
@@ -942,7 +943,7 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
   inter_idx = param_index(buffer, i, j);
   B = buffer->B[inter_idx];
   eta = buffer->eta[inter_idx];
-  delta = buffer->delta[inter_idx];
+  delta2 = buffer->delta2[inter_idx];
 
 
   /* unpack data from buffer */
@@ -968,7 +969,7 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
   epart3 = exp(eta * cos_kl[2][0]*cos_kl[2][1]*cos_kl[2][2]);
   D2 = epart1 + epart2 + epart3;
 
-  delsq = delta*delta;
+  delsq = delta2*delta2;
   D1 = B*exp(-rhosq/delsq);
 
   /* dihedral energy */
@@ -1288,6 +1289,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   double* model_A;
   double* model_z0;
   double* model_B;
+  double* model_delta2;
   double* model_eta;
 
   model_buffer* buffer;
@@ -1342,6 +1344,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   model_A      = (double*) malloc(nInteract*sizeof(double));
   model_z0     = (double*) malloc(nInteract*sizeof(double));
   model_B      = (double*) malloc(nInteract*sizeof(double));
+  model_delta2  = (double*) malloc(nInteract*sizeof(double));
   model_eta    = (double*) malloc(nInteract*sizeof(double));
   model_cutoff = (double*) malloc(nInteract*sizeof(double));
   if (model_C0==NULL
@@ -1353,6 +1356,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
       || model_A==NULL
       || model_z0==NULL
       || model_B==NULL
+      || model_delta2==NULL
       || model_eta==NULL
       || model_cutoff==NULL) {
     ier = KIM_STATUS_FAIL;
@@ -1362,7 +1366,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
 
   /* read parameters */
   for (i=0; i< nInteract; ++i) {
-    ier = fscanf(fid, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",
+    ier = fscanf(fid, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",
         &model_C0[i],
         &model_C2[i],
         &model_C4[i],
@@ -1372,10 +1376,11 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
         &model_A[i],
         &model_z0[i],
         &model_B[i],
+        &model_delta2[i],
         &model_eta[i],
         &model_cutoff[i]);
     /* check that we read the right number of parameters */
-    if (11 != ier) {
+    if (12 != ier) {
       ier = KIM_STATUS_FAIL;
       KIM_API_report_error(__LINE__, __FILE__, "corrupted parameter file", ier);
       return ier;
@@ -1422,7 +1427,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   }
 
   /* store parameters in KIM object */
-  KIM_API_setm_data(pkim, &ier, 11*4,
+  KIM_API_setm_data(pkim, &ier, 12*4,
       "PARAM_FREE_cutoff",    nInteract,  model_cutoff,  1,
       "PARAM_FREE_C0",        nInteract,  model_C0,      1,
       "PARAM_FREE_C2",        nInteract,  model_C2,      1,
@@ -1433,6 +1438,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
       "PARAM_FREE_A",         nInteract,  model_A,       1,
       "PARAM_FREE_z0",        nInteract,  model_z0,      1,
       "PARAM_FREE_B",         nInteract,  model_B,       1,
+      "PARAM_FREE_delta2",     nInteract,  model_delta2,   1,
       "PARAM_FREE_eta",       nInteract,  model_eta,     1);
   if (KIM_STATUS_OK > ier) {
     KIM_API_report_error(__LINE__, __FILE__, "KIM_API_setm_data", ier);
@@ -1459,6 +1465,7 @@ int model_driver_init(void *km, char* paramfile_names, int* nmstrlen, int* numpa
   buffer->A      = model_A;
   buffer->z0     = model_z0;
   buffer->B     = model_B;
+  buffer->delta2  = model_delta2;
   buffer->eta     = model_eta;
   /* end setup buffer */
 
@@ -1538,6 +1545,7 @@ static int destroy(void *km)
   free(buffer->A);
   free(buffer->z0);
   free(buffer->B);
+  free(buffer->delta2);
   free(buffer->eta);
 
   /* destroy the buffer */
