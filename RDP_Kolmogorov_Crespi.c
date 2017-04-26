@@ -944,7 +944,9 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
 
 
   /* NOTE this should be a params and read in from file */
-  double cut_rhosq = 1.2*1.2;
+  /*double cut_rhosq = (1.42*1.5)*(1.42*1.5);
+  */
+  double cut_rhosq = (1.0)*(1.0);
 
   /* if larger than cutoff of rho, return 0 */
   if (rhosq >= cut_rhosq) {
