@@ -119,8 +119,6 @@ PARAM_FREE_z0               double       length               [:]
 
 PARAM_FREE_B                double       none                 [:]
 
-PARAM_FREE_delta2           double       length               [:]
-
 PARAM_FREE_eta              double       none                 [:]
 
 # the unites of lambda should be resolved

@@ -1118,6 +1118,7 @@ static double deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
 
 
 /* tap */
+/*
 static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap)
 {
   int inter_idx;
@@ -1132,12 +1133,38 @@ static double tap(model_buffer* buffer, int i, int j, double r, double *const dt
   roc = r/cutoff;
   roc_sq = roc*roc;
   t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
-/*  *dtap = roc_sq*roc_sq* (-140.0/r + 420.0/cutoff + roc_sq* (-420.0/r + 140.0/cutoff));
-*/
   *dtap = roc_sq*roc/cutoff* (-140.0 + 420.0*roc + roc_sq* (-420.0 + 140.0*roc));
 
   return t;
 }
+*/
+
+/* tap */
+static double tap(model_buffer* buffer, int i, int j, double r, double *const dtap)
+{
+  int inter_idx;
+  double cutoff;
+  double roc;
+  double roc_sq;
+  double t;
+  double r_min = 5;
+
+  inter_idx = param_index(buffer, i, j);
+  cutoff = buffer->cutoff[inter_idx];
+
+  if (r <= r_min) {
+    t = 0;
+    *dtap = 0;
+  } else {
+    roc = (r-r_min)/(cutoff-r_min);
+    roc_sq = roc*roc;
+    t = roc_sq*roc_sq* (-35.0 + 84.0*roc + roc_sq* (-70.0 + 20.0*roc)) + 1;
+    *dtap = roc_sq*roc/(cutoff-r_min)* (-140.0 + 420.0*roc + roc_sq* (-420.0 + 140.0*roc));
+  }
+
+  return t;
+}
+
 
 
 
