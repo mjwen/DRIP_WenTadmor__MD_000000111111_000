@@ -940,9 +940,7 @@ static double dihedral(model_buffer *const buffer, double rhosq, const int i, co
 
 
   /* NOTE this should be a params and read in from file */
-  /*double cut_rhosq = (1.42*1.5)*(1.42*1.5);
-  */
-  double cut_rhosq = (1.0)*(1.0);
+  double cut_rhosq = (1.42*1.1)*(1.42*1.1);
 
   /* if larger than cutoff of rho, return 0 */
   if (rhosq >= cut_rhosq) {
@@ -1147,13 +1145,13 @@ static double tap(model_buffer* buffer, int i, int j, double r, double *const dt
   double roc;
   double roc_sq;
   double t;
-  double r_min = 5;
+  double r_min = 0;
 
   inter_idx = param_index(buffer, i, j);
   cutoff = buffer->cutoff[inter_idx];
 
   if (r <= r_min) {
-    t = 0;
+    t = 1;
     *dtap = 0;
   } else {
     roc = (r-r_min)/(cutoff-r_min);
