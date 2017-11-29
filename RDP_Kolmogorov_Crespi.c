@@ -899,6 +899,11 @@ static double td(double C0, double C2, double C4, double delta,
 
   n_dot_r = dot(n, rvec);
   *rho_sq = r*r - n_dot_r*n_dot_r;
+
+  if(*rho_sq<0) {   /* in case n is [0, 0, 1] and rho_sq is negative due to numerical error */
+    *rho_sq = 0;
+  }
+
   del_sq = delta*delta;
   rod_sq = (*rho_sq)/del_sq;
   td = exp(-rod_sq) * (C0 + rod_sq*(C2 + rod_sq*C4));
