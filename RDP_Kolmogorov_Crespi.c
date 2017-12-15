@@ -283,6 +283,9 @@ static int create_layers(void* km)
   model_index_shift = buffer->model_index_shift;
   get_neigh = buffer->get_neigh;
 
+  /* no atoms, which can happen when doing comain decompisition */
+  if (nAtoms <= 0) return KIM_STATUS_OK;
+
   /* allocate memory for layer infor*/
   layer = (int*) malloc(nAtoms*sizeof(int));
   in_layer = (int*) malloc(nAtoms*sizeof(int));
