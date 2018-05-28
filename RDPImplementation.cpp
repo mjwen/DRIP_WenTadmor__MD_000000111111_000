@@ -164,9 +164,6 @@ int RDPImplementation::Refresh(
   ier = SetRefreshMutableValues(modelRefresh);
   if (ier) return ier;
 
-  //TODO you may want to recompute cutoffSq_2D_ and others related to parameters
-
-
   // everything is good
   ier = false;
   return ier;
@@ -514,7 +511,10 @@ int RDPImplementation::ConvertUnits(
   if (convertLength != ONE) {
     for (int i = 0; i < numberUniqueSpeciesPairs_; ++i) {
       cutoff_[i] *= convertLength;
-      // TODO add more parameters
+      delta_[i] *= convertLength;
+      z0_[i] *= convertLength;
+      lambda_[i] /= convertLength;
+      eta_[i] /= convertLength;
     }
   }
 
@@ -533,8 +533,12 @@ int RDPImplementation::ConvertUnits(
   // convert to active units
   if (convertLength != ONE) {
     for (int i = 0; i < numberUniqueSpeciesPairs_; ++i) {
+      C0_[i] *= convertEnergy;
+      C2_[i] *= convertEnergy;
+      C4_[i] *= convertEnergy;
+      C_[i] *= convertEnergy;
+      B_[i] *= convertEnergy;
       A_[i] *= convertEnergy;
-      // TODO add more parameters
     }
   }
 
@@ -570,7 +574,6 @@ int RDPImplementation::RegisterKIMModelSettings(
 int RDPImplementation::RegisterKIMComputeArgumentsSettings(
     KIM::ModelComputeArgumentsCreate * const modelComputeArgumentsCreate) const
 {
-  // TODO modifiy accordingly
   // register arguments
   LOG_INFORMATION("Register argument supportStatus");
   int error =
@@ -584,7 +587,6 @@ int RDPImplementation::RegisterKIMComputeArgumentsSettings(
           KIM::COMPUTE_ARGUMENT_NAME::partialParticleEnergy,
           KIM::SUPPORT_STATUS::optional);
 
-  // TODO modifiy accordingly
   // register callbacks
   LOG_INFORMATION("Register callback supportStatus");
   error = error
@@ -593,7 +595,7 @@ int RDPImplementation::RegisterKIMComputeArgumentsSettings(
           KIM::SUPPORT_STATUS::optional)
       || modelComputeArgumentsCreate->SetCallbackSupportStatus(
           KIM::COMPUTE_CALLBACK_NAME::ProcessD2EDr2Term,
-          KIM::SUPPORT_STATUS::optional);
+          KIM::SUPPORT_STATUS::notSupported);
 
   return error;
 }
@@ -606,8 +608,16 @@ int RDPImplementation::RegisterKIMParameters(
   int ier = false;
 
   // publish parameters (order is important)
-  // TODO add parameters
-  ier = modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, A_, "A")
+  ier = modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C0_, "C0")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C2_, "C2")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C4_, "C4")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C_, "C")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, delta_, "delta")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, lambda_, "lambda")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, A_, "A")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, z0_, "z0")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, B_, "B")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, eta_, "eta")
      || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, cutoff_, "cutoff");
   if (ier) {
     LOG_ERROR("set_parameters");
@@ -655,8 +665,16 @@ int RDPImplementation::SetRefreshMutableValues(
     for (int j = 0; j <= i ; ++j) {
       int const index = j*numberModelSpecies_ + i - (j*j + j)/2;
       cutoffSq_2D_[i][j] = cutoffSq_2D_[j][i] = cutoff_[index] * cutoff_[index];
+      C0_2D_[i][j] = C0_2D_[j][i] = C0_[index];
+      C2_2D_[i][j] = C2_2D_[j][i] = C2_[index];
+      C4_2D_[i][j] = C4_2D_[j][i] = C4_[index];
+      C_2D_[i][j] = C_2D_[j][i] = C_[index];
+      delta_2D_[i][j] = delta_2D_[j][i] = delta_[index];
+      lambda_2D_[i][j] = lambda_2D_[j][i] = lambda_[index];
       A_2D_[i][j] = A_2D_[j][i] = A_[index];
-      //TODO add parameters
+      z0_2D_[i][j] = z0_2D_[j][i] = z0_[index];
+      B_2D_[i][j] = B_2D_[j][i] = B_[index];
+      eta_2D_[i][j] = eta_2D_[j][i] = eta_[index];
     }
   }
 
