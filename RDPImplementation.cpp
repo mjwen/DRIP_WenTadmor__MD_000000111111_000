@@ -19,15 +19,11 @@
 //
 
 //
-// Copyright (c) 2013--2015, Regents of the University of Minnesota.
+// Copyright (c) 2013--2018, Regents of the University of Minnesota.
 // All rights reserved.
 //
 // Contributors:
 //    Mingjian Wen
-//    Ryan S. Elliott
-//    Stephen M. Whalen
-//    Andrew Akerson
-//
 
 
 #include <cmath>
@@ -37,13 +33,14 @@
 #include <iostream>
 #include <map>
 
-#include "RDPImplementation.hpp"
 #include "KIM_Numbering.hpp"
 #include "KIM_LanguageName.hpp"
 #include "KIM_SpeciesName.hpp"
 #include "KIM_SupportStatus.hpp"
 #include "KIM_ComputeArgumentName.hpp"
 #include "KIM_ComputeCallbackName.hpp"
+#include "RDPImplementation.hpp"
+#include "helper.h"
 
 #define MAXLINE 1024
 
@@ -67,12 +64,28 @@ RDPImplementation::RDPImplementation(
 : numberModelSpecies_(0),
   numberUniqueSpeciesPairs_(0),
   cutoff_(0),
-  // TODO add potential parameters
+  C0_(0),
+  C2_(0),
+  C4_(0),
+  C_(0),
+  delta_(0),
+  lambda_(0),
   A_(0),
+  z0_(0),
+  B_(0),
+  eta_(0),
   influenceDistance_(0.0),
   cutoffSq_2D_(0),
-  // TODO add potential parameters in 2D
+  C0_2D_(0),
+  C2_2D_(0),
+  C4_2D_(0),
+  C_2D_(0),
+  delta_2D_(0),
+  lambda_2D_(0),
   A_2D_(0),
+  z0_2D_(0),
+  B_2D_(0),
+  eta_2D_(0),
   cachedNumberOfParticles_(0)
 {
   FILE* parameterFilePointers[MAX_PARAMETER_FILES];
@@ -118,12 +131,28 @@ RDPImplementation::~RDPImplementation()
   // everything is initialized to null
 
   Deallocate1DArray(cutoff_);
-  //TODO deallocate memory of your parameters
+  Deallocate1DArray(C0_);
+  Deallocate1DArray(C2_);
+  Deallocate1DArray(C4_);
+  Deallocate1DArray(C_);
+  Deallocate1DArray(delta_);
+  Deallocate1DArray(lambda_);
   Deallocate1DArray(A_);
+  Deallocate1DArray(z0_);
+  Deallocate1DArray(B_);
+  Deallocate1DArray(eta_);
 
   Deallocate2DArray(cutoffSq_2D_);
-  //TODO deallocate memory of your parameters
+  Deallocate2DArray(C0_2D_);
+  Deallocate2DArray(C2_2D_);
+  Deallocate2DArray(C4_2D_);
+  Deallocate2DArray(C_2D_);
+  Deallocate2DArray(delta_2D_);
+  Deallocate2DArray(lambda_2D_);
   Deallocate2DArray(A_2D_);
+  Deallocate2DArray(z0_2D_);
+  Deallocate2DArray(B_2D_);
+  Deallocate2DArray(eta_2D_);
 }
 
 //******************************************************************************
@@ -277,11 +306,13 @@ int RDPImplementation::ProcessParameterFiles(
     FILE* const parameterFilePointers[MAX_PARAMETER_FILES])
 {
   int N, ier;
+  int numberOfLinesRead;
   int endOfFileFlag = 0;
-  char spec1[MAXLINE], spec2[MAXLINE], nextLine[MAXLINE];
+  char spec1[MAXLINE], nextLine[MAXLINE];
   int iIndex, jIndex , indx;
-  double next_A, next_B, next_p, next_q, next_sigma, next_lambda, next_gamma;
-  double next_costheta0, next_cutoff;
+  double next_C0, next_C2, next_C4, next_C, next_delta, next_lambda, next_A;
+  double next_z0, next_B, next_eta, next_cutoff;
+
 
   getNextDataLine(parameterFilePointers[0], nextLine, MAXLINE, &endOfFileFlag);
   ier = sscanf(nextLine, "%d", &N);
@@ -298,10 +329,6 @@ int RDPImplementation::ProcessParameterFiles(
   // allocate memory for all parameters
   AllocateFreeParameterMemory();
 
-  // set all values of p_ to -1.1e10 for later check that we have read all params
-  for (int i = 0; i < ((N+1)*N/2); i++) {
-    p_[i]  = -1.1e10;
-  }
 
   // keep track of known species
   std::map<KIM::SpeciesName const, int, KIM::SPECIES_NAME::Comparator>
@@ -309,13 +336,14 @@ int RDPImplementation::ProcessParameterFiles(
   int index = 0;   // species code integer code starting from 0
 
   // Read and process data lines
+  numberOfLinesRead = 0;
   getNextDataLine(parameterFilePointers[0], nextLine, MAXLINE, &endOfFileFlag);
   while (endOfFileFlag == 0)
   {
-    ier = sscanf(nextLine, "%s %s %lg %lg %lg %lg %lg %lg %lg %lg %lg",
-                 spec1, spec2, &next_A, &next_B, &next_p, &next_q, &next_sigma,
-                 &next_lambda, &next_gamma, &next_costheta0, &next_cutoff);
-    if (ier != 11) {
+    ier = sscanf(nextLine, "%s %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg",
+                 &spec1, &next_C0, &next_C2, &next_C4, &next_C, &next_delta,
+                 &next_lambda, &next_A, &next_z0, &next_B, &next_eta, &next_cutoff);
+    if (ier != 12) {
       sprintf(nextLine, "error reading lines of the parameter file");
       LOG_ERROR(nextLine);
       return true;
@@ -323,7 +351,7 @@ int RDPImplementation::ProcessParameterFiles(
 
     // convert species strings to proper type instances
     KIM::SpeciesName const specName1(spec1);
-    KIM::SpeciesName const specName2(spec2);
+    KIM::SpeciesName const specName2(spec1);
 
     // check for new species
     std::map<KIM::SpeciesName const, int, KIM::SPECIES_NAME::Comparator>::
@@ -362,27 +390,28 @@ int RDPImplementation::ProcessParameterFiles(
     else {
       indx = iIndex*N + jIndex - (iIndex*iIndex + iIndex)/2;
     }
-    A_[indx] = next_A;
-    B_[indx] = next_B;
-    p_[indx] = next_p;
-    q_[indx] = next_q;
-    sigma_[indx] = next_sigma;
+    C0_[indx] = next_C0;
+    C2_[indx] = next_C2;
+    C4_[indx] = next_C4;
+    C_[indx] = next_C;
+    delta_[indx] = next_delta;
     lambda_[indx] = next_lambda;
-    gamma_[indx] = next_gamma;
-    costheta0_[indx] = next_costheta0;
+    A_[indx] = next_A;
+    z0_[indx] = next_z0;
+    B_[indx] = next_B;
+    eta_[indx] = next_eta;
     cutoff_[indx] = next_cutoff;
 
+    numberOfLinesRead += 1;
     getNextDataLine(parameterFilePointers[0], nextLine, MAXLINE, &endOfFileFlag);
   }
 
   // check we have read all parameters
-  for (int i = 0; i < ((N+1)*N/2); i++) {
-    if (p_[i] < -1e10) {
-      sprintf(nextLine, "error: not enough parameter data.\n");
-      sprintf(nextLine, "%d species requires %d data lines.", N, (N+1)*N/2);
-      LOG_ERROR(nextLine);
-      return true;
-    }
+  if ( (N+1)*N/2 != numberOfLinesRead ) {
+    sprintf(nextLine, "error in parameter file.\n");
+    LOG_ERROR(nextLine);
+    return true;
+
   }
 
   // everything is good
@@ -425,12 +454,28 @@ void RDPImplementation::CloseParameterFiles(
 void RDPImplementation::AllocateFreeParameterMemory()
 { // allocate memory for data
   AllocateAndInitialize1DArray(cutoff_, numberUniqueSpeciesPairs_);
-  // TODO add parameters
+  AllocateAndInitialize1DArray(C0_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(C2_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(C4_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(C_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(delta_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(lambda_, numberUniqueSpeciesPairs_);
   AllocateAndInitialize1DArray(A_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(z0_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(B_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray(eta_, numberUniqueSpeciesPairs_);
 
   AllocateAndInitialize2DArray(cutoffSq_2D_, numberModelSpecies_, numberModelSpecies_);
-  // TODO add parameters
+  AllocateAndInitialize2DArray(C0_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(C2_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(C4_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(C_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(delta_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(lambda_2D_, numberModelSpecies_, numberModelSpecies_);
   AllocateAndInitialize2DArray(A_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(z0_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(B_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray(eta_2D_, numberModelSpecies_, numberModelSpecies_);
 
 }
 

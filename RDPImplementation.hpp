@@ -19,7 +19,7 @@
 //
 
 //
-// Copyright (c) 2017, Regents of the University of Minnesota.
+// Copyright (c) 2018, Regents of the University of Minnesota.
 // All rights reserved.
 //
 // Contributors:
@@ -53,12 +53,6 @@ typedef int (GetNeighborFunction)(void const * const, int const,
 // type declaration for vector of constant dimension
 typedef double VectorOfSizeDIM[DIMENSION];
 
-// helper routine declarations
-void AllocateAndInitialize2DArray(double**& arrayPtr, int const extentZero,
-                                  int const extentOne);
-void Deallocate2DArray(double**& arrayPtr);
-void AllocateAndInitialize1DArray(double*& arrayPtr, int const extentZero);
-void Deallocate1DArray(double*& arrayPtr);
 
 //==============================================================================
 //
@@ -117,8 +111,16 @@ class RDPImplementation
   //   Memory deallocated in destructor
   //   Data set in ReadParameterFile routines OR by KIM Simulator
   double* cutoff_;
-  // TODO add other parameters
+  double* C0_;
+  double* C2_;
+  double* C4_;
+  double* C_;
+  double* delta_;
+  double* lambda_;
   double* A_;
+  double* z0_;
+  double* B_;
+  double* eta_;
 
 
   // Mutable values that only change when Refresh() executes
@@ -134,7 +136,16 @@ class RDPImplementation
   // RDPImplementation: values
   double influenceDistance_;
   double** cutoffSq_2D_;
-  // TODO add other parameters
+  double** C0_2D_;
+  double** C2_2D_;
+  double** C4_2D_;
+  double** C_2D_;
+  double** delta_2D_;
+  double** lambda_2D_;
+  double** A_2D_;
+  double** z0_2D_;
+  double** B_2D_;
+  double** eta_2D_;
 
 
   // Mutable values that can change with each call to Refresh() and Compute()
