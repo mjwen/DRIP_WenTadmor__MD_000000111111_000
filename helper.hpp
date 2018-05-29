@@ -26,32 +26,36 @@
 //    Mingjian Wen
 
 
-#include <cmath>
-#include "helper.h"
+#ifndef HELPER_H_
+#define HELPER_H_
 
+#include <cmath>
 
 // allocate memory and set pointers
-void AllocateAndInitialize1DArray(double*& arrayPtr, int const extent)
+template<class T>
+void AllocateAndInitialize1DArray(T*& arrayPtr, int const extent)
 {
-  arrayPtr = new double[extent];
+  arrayPtr = new T[extent];
   for (int i = 0; i < extent; ++i) {
     arrayPtr[i] = 0.0;
   }
 }
 
 // deallocate memory
-void Deallocate1DArray(double*& arrayPtr) {
+template<class T>
+void Deallocate1DArray(T*& arrayPtr) {
 	delete [] arrayPtr;
 	// nullify pointer
 	arrayPtr = 0;
 }
 
 // allocate memory and set pointers
-void AllocateAndInitialize2DArray(double**& arrayPtr, int const extentZero,
+template<class T>
+void AllocateAndInitialize2DArray(T**& arrayPtr, int const extentZero,
 		int const extentOne)
 {
-	arrayPtr = new double*[extentZero];
-	arrayPtr[0] = new double[extentZero * extentOne];
+	arrayPtr = new T*[extentZero];
+	arrayPtr[0] = new T[extentZero * extentOne];
 	for (int i = 1; i < extentZero; ++i) {
 		arrayPtr[i] = arrayPtr[i-1] + extentOne;
 	}
@@ -65,7 +69,8 @@ void AllocateAndInitialize2DArray(double**& arrayPtr, int const extentZero,
 }
 
 // deallocate memory
-void Deallocate2DArray(double**& arrayPtr) {
+template<class T>
+void Deallocate2DArray(T**& arrayPtr) {
 	if (arrayPtr != 0) delete [] arrayPtr[0];
 	delete [] arrayPtr;
 
@@ -74,12 +79,13 @@ void Deallocate2DArray(double**& arrayPtr) {
 }
 
 // allocate memory and set pointers
-void AllocateAndInitialize3DArray(double***& arrayPtr, int const extentZero,
+template<class T>
+void AllocateAndInitialize3DArray(T***& arrayPtr, int const extentZero,
 		int const extentOne, int const extentTwo)
 {
-  arrayPtr = new double**[extentZero];
-  arrayPtr[0] = new double*[extentZero * extentOne];
-  arrayPtr[0][0] = new double[extentZero * extentOne * extentTwo];
+  arrayPtr = new T**[extentZero];
+  arrayPtr[0] = new T*[extentZero * extentOne];
+  arrayPtr[0][0] = new T[extentZero * extentOne * extentTwo];
 
   for (int i = 1; i < extentZero; ++i) {
     arrayPtr[i] = arrayPtr[i-1] + extentOne;
@@ -103,7 +109,8 @@ void AllocateAndInitialize3DArray(double***& arrayPtr, int const extentZero,
 }
 
 // deallocate memory
-void Deallocate3DArray(double***& arrayPtr) {
+template<class T>
+void Deallocate3DArray(T***& arrayPtr) {
   if (arrayPtr != 0) {
     if (arrayPtr[0] != 0) {
       delete [] arrayPtr[0][0];
@@ -117,3 +124,5 @@ void Deallocate3DArray(double***& arrayPtr) {
 }
 
 
+
+#endif

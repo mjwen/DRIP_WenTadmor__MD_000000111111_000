@@ -42,9 +42,9 @@ MODEL_DRIVER_CREATE_FUNCTION_LANG := cpp
 LOCALOBJ = RDP.o RDPImplementation.o helper.o
 
 RDP.o: RDP.hpp RDPImplementation.hpp
-RDPImplementation.o: RDPImplementation.hpp helper.h  \
+RDPImplementation.o: RDPImplementation.hpp helper.hpp  \
                                  RDPImplementationComputeDispatch.cpp
-helper.o: helper.h
+helper.o: helper.hpp
 RDPImplementationComputeDispatch.cpp: CreateDispatch.sh
 	@./CreateDispatch.sh
 	@printf "Creating... $@.\n"

@@ -32,8 +32,9 @@
 #include <vector>
 #include "KIM_LogVerbosity.hpp"
 #include "RDP.hpp"
+#include "helper.hpp"
 
-#define DIMENSION 3
+#define DIM 3
 #define ONE 1.0
 #define HALF 0.5
 
@@ -51,7 +52,8 @@ typedef int (GetNeighborFunction)(void const * const, int const,
                                   int * const, int const ** const);
 
 // type declaration for vector of constant dimension
-typedef double VectorOfSizeDIM[DIMENSION];
+typedef double VectorOfSizeDIM[DIM];
+typedef int VectorOfSize3Int[DIM];
 
 
 //==============================================================================
@@ -154,6 +156,11 @@ class RDPImplementation
   //
   // RDPImplementation: values that change
   int cachedNumberOfParticles_;
+  int cachedIsComputeEnergy_;
+  int cachedIsComputeParticleEnergy_;
+  int cachedIsComputeForces_;
+  int cachedIsComputeProcess_dEdr_;
+  int cachedIsComputeProcess_d2Edr2_;
 
 
   // Helper methods
@@ -229,7 +236,56 @@ class RDPImplementation
 
 
   // RDP functions
-  // TODO add functions declaration of your implementation
+  int create_layers( KIM::ModelCompute const * const modelCompute,
+      KIM::ModelComputeArguments const * const modelComputeArguments,
+      VectorOfSizeDIM const * const coordinates,
+      int * const in_layer, VectorOfSize3Int * const nearest3neigh);
+
+  double calc_attractive(const int i, const int j, double *const rij, const double r);
+
+  double calc_repulsive(const int i, const int j, double *const rij, const double r);
+
+  void normal(const int i, VectorOfSizeDIM const * const coordinates,
+      VectorOfSize3Int const * const nearest3neigh,
+      int & k1, int & k2, int & k3, double * const normal,
+      VectorOfSizeDIM * const dn_dri, VectorOfSizeDIM * const dn_drk1,
+      VectorOfSizeDIM * const dn_drk2, VectorOfSizeDIM * const dn_drk3);
+
+
+  double td(double C0, double C2, double C4, double delta,
+      const double* rvec, double r, const double* n,  double *const rho_sq,
+      double *const dtd);
+
+  void get_drhosqij(const double rij[DIM], const double ni[DIM],
+      double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
+      double dni_drn2[DIM][DIM], double dni_drn3[DIM][DIM],
+      double drhosq_dri[DIM], double drhosq_drj[DIM],
+      double drhosq_drn1[DIM], double drhosq_drn2[DIM],
+      double drhosq_drn3[DIM]);
+
+  double dihedral(double rhosq, const int i, const int j,
+      double *const d_drhosq, double d_dri[DIM], double d_drj[DIM],
+      double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
+      double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM]);
+
+  double deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
+    double rl[DIM], double dcos_drk[DIM], double dcos_dri[DIM],
+    double dcos_drj[DIM], double dcos_drl[DIM]);
+
+  double tap(int i, int j, double r, double *const dtap);
+
+  double tap_rho(double rhosq, double cut_rhosq, double *const drhosq);
+
+  // helper
+  double rsq_rij(const int i, const int j, double *const rij);
+
+  double dot(const double x[DIM], const double y[DIM]);
+
+  void deriv_cross(double rk[DIM], double rl[DIM], double rm[DIM], double cross[DIM],
+      double dcross_drk[DIM][DIM], double dcross_drl[DIM][DIM],
+      double dcross_drm[DIM][DIM]);
+
+  void mat_dot_vec(double X[DIM][DIM], const double y[DIM], double z[DIM]);
 
 };
 
@@ -258,6 +314,7 @@ int RDPImplementation::Compute(
     double* const particleEnergy)
 {
   int ier = false;
+  const int Natoms = cachedNumberOfParticles_;
 
   if ((isComputeEnergy == false) &&
       (isComputeParticleEnergy == false) &&
@@ -266,23 +323,46 @@ int RDPImplementation::Compute(
       (isComputeProcess_d2Edr2 == false))
     return ier;
 
+  // put them global
+  cachedIsComputeEnergy_ = isComputeEnergy;
+  cachedIsComputeParticleEnergy_ = isComputeParticleEnergy;
+  cachedIsComputeForces_ = isComputeForces;
+  cachedIsComputeProcess_dEdr_ = isComputeProcess_dEdr;
+  cachedIsComputeProcess_d2Edr2_ = isComputeProcess_d2Edr2;
+
   // initialize energy and forces
   if (isComputeEnergy == true) {
     *energy = 0.0;
   }
 
   if (isComputeParticleEnergy == true) {
-    for (int i = 0; i < cachedNumberOfParticles_; ++i) {
+    for (int i = 0; i < Natoms; ++i) {
       particleEnergy[i] = 0.0;
     }
   }
 
   if (isComputeForces == true) {
-    for (int i = 0; i < cachedNumberOfParticles_; ++i) {
-      for (int j = 0; j < DIMENSION; ++j)
+    for (int i = 0; i < Natoms; ++i) {
+      for (int j = 0; j < DIM; ++j)
         forces[i][j] = 0.0;
     }
   }
+
+
+  // allocate atoms into layers
+  int * in_layer; // atoms in which layer , -1: not classified in any layer
+  int ** n3n; // nearest 3 neighbors of atom
+  AllocateAndInitialize1DArray<int>(in_layer, Natoms);
+  AllocateAndInitialize2DArray<int>(n3n, Natoms, 3);
+  VectorOfSize3Int * nearest3neigh = (VectorOfSize3Int*) nearest3neigh;
+
+  ier = create_layers(modelCompute, modelComputeArguments, coordinates,
+      in_layer, nearest3neigh);
+  if (ier) {
+    LOG_ERROR("create_layers");
+    return ier;
+  }
+
 
   // calculate contribution from pair function
   //
@@ -295,15 +375,32 @@ int RDPImplementation::Compute(
     if (particleContributing[i]) {
       modelComputeArguments->GetNeighborList(0, i, &numnei, &n1atom);
       int const iSpecies = particleSpecies[i];
+      int const ilayer = in_layer[i];
+
+      // three nearest neighbors of atom i
+      int nbi1;
+      int nbi2;
+      int nbi3;
+      double ni[DIM]; // normal at atom i
+      double dni_dri[DIM][DIM];
+      double dni_drnbi1[DIM][DIM];
+      double dni_drnbi2[DIM][DIM];
+      double dni_drnbi3[DIM][DIM];
+
+      // get 3 nearest neighs of atom i and compute the derivative of ni w.r.t. them
+      normal(i, coordinates, nearest3neigh, nbi1, nbi2, nbi3, ni, dni_dri,
+          dni_drnbi1, dni_drnbi2, dni_drnbi3);
 
       // Setup loop over neighbors of current particle
       for (int jj = 0; jj < numnei; ++jj) {
         int const j = n1atom[jj];
         int const jSpecies = particleSpecies[j];
+        int const jlayer = in_layer[j];
+        if (ilayer == jlayer) continue;
 
         // Compute rij
-        double rij[DIMENSION];
-        for (int dim = 0; dim < DIMENSION; ++dim)
+        double rij[DIM];
+        for (int dim = 0; dim < DIM; ++dim)
           rij[dim] = coordinates[j][dim] - coordinates[i][dim];
 
         // compute distance squared
@@ -312,10 +409,18 @@ int RDPImplementation::Compute(
 
         if (rij_sq <= cutoffSq_2D_[iSpecies][jSpecies]) {
 
-          // two-body contributions
-          // TODO add your implementation
+          double phi_repul = calc_repulsive(buffer, i, j, rij, rij_mag);
+          double phi_attr = calc_attractive(buffer, i, j, rij, rij_mag);
 
-
+          if (buffer->comp_energy) {
+            // HALF because of full neighborlist
+            *energy += HALF * (phi_repul + phi_attr);
+          }
+          if (buffer->comp_particleEnergy) {
+            for (int k=0; k<nAtoms; k++) {
+              particleEnergy[k] +=  HALF * (phi_repul + phi_attr);
+            }
+          }
 
 
         }  // if particleContributing
