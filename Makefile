@@ -35,7 +35,7 @@ include $(shell $(KIM_API_BUILD_CONFIG) --master-config)
 
 
 # set model driver specific details
-MODEL_DRIVER_NAME := RDP__MD_000000111111_000
+MODEL_DRIVER_NAME := RDP_modified_Kolmogorov_Crespi__MD_000000111111_000
 MODEL_DRIVER_CREATE_FUNCTION_NAME := model_driver_create
 MODEL_DRIVER_CREATE_FUNCTION_LANG := cpp
 

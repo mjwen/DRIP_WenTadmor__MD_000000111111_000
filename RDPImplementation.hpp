@@ -236,14 +236,25 @@ class RDPImplementation
 
 
   // RDP functions
-  int create_layers( KIM::ModelCompute const * const modelCompute,
-      KIM::ModelComputeArguments const * const modelComputeArguments,
+ int create_layers(KIM::ModelCompute const * const modelCompute,
+    KIM::ModelComputeArguments const * const modelComputeArguments,
+    VectorOfSizeDIM const * const coordinates,
+    int * const in_layer,
+    VectorOfSize3Int * const nearest3neigh);
+
+  double calc_attractive(int const i, int const j,
+     int const iSpecies, int const jSpecies, double const * const rij,
+     double const r, VectorOfSizeDIM * const forces);
+
+  double calc_repulsive(int const i, int const j,
+      int const * const particleSpecies,
       VectorOfSizeDIM const * const coordinates,
-      int * const in_layer, VectorOfSize3Int * const nearest3neigh);
-
-  double calc_attractive(const int i, const int j, double *const rij, const double r);
-
-  double calc_repulsive(const int i, const int j, double *const rij, const double r);
+      VectorOfSize3Int const * const nearest3neigh,
+      const double * const rij,
+      double const r, const int nbj1, const int nbj2, const int nbj3,
+      double const * const ni,  VectorOfSizeDIM const * const dni_dri,
+      VectorOfSizeDIM const * const dni_drnb1, VectorOfSizeDIM const * const dni_drnb2,
+      VectorOfSizeDIM const * const dni_drnb3, VectorOfSizeDIM * const forces);
 
   void normal(const int i, VectorOfSizeDIM const * const coordinates,
       VectorOfSize3Int const * const nearest3neigh,
@@ -251,41 +262,47 @@ class RDPImplementation
       VectorOfSizeDIM * const dn_dri, VectorOfSizeDIM * const dn_drk1,
       VectorOfSizeDIM * const dn_drk2, VectorOfSizeDIM * const dn_drk3);
 
-
   double td(double C0, double C2, double C4, double delta,
-      const double* rvec, double r, const double* n,  double *const rho_sq,
-      double *const dtd);
+      double const * const rvec, double r, const double* const n, double & rho_sq,
+      double & dtd);
 
-  void get_drhosqij(const double rij[DIM], const double ni[DIM],
-      double dni_dri[DIM][DIM], double dni_drn1[DIM][DIM],
-      double dni_drn2[DIM][DIM], double dni_drn3[DIM][DIM],
-      double drhosq_dri[DIM], double drhosq_drj[DIM],
-      double drhosq_drn1[DIM], double drhosq_drn2[DIM],
-      double drhosq_drn3[DIM]);
+  void get_drhosqij(double const * const rij,
+      double const * const ni,
+      VectorOfSizeDIM const * const dni_dri,
+      VectorOfSizeDIM const * const dni_drn1,
+      VectorOfSizeDIM const * const dni_drn2,
+      VectorOfSizeDIM const * const dni_drn3,
+      double * const drhosq_dri, double * const drhosq_drj,
+      double * const drhosq_drn1, double * const drhosq_drn2,
+      double * const drhosq_drn3);
 
-  double dihedral(double rhosq, const int i, const int j,
-      double *const d_drhosq, double d_dri[DIM], double d_drj[DIM],
+  double dihedral(const int i, const int j,
+      int const * const particleSpecies,
+      VectorOfSizeDIM const * const coordinates,
+      VectorOfSize3Int const * const nearest3neigh,
+      double const rhosq,
+      double & d_drhosq, double d_dri[DIM], double d_drj[DIM],
       double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
       double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM]);
 
-  double deriv_cos_omega(double rk[DIM], double ri[DIM], double rj[DIM],
-    double rl[DIM], double dcos_drk[DIM], double dcos_dri[DIM],
-    double dcos_drj[DIM], double dcos_drl[DIM]);
+  double deriv_cos_omega(double const * const rk,
+      double const * const ri, double const * const rj, double const * const rl,
+      double * const dcos_drk, double * const dcos_dri, double * const dcos_drj,
+      double * const dcos_drl);
 
-  double tap(int i, int j, double r, double *const dtap);
+  double tap(double r, double cutoff, double & dtap);
 
-  double tap_rho(double rhosq, double cut_rhosq, double *const drhosq);
+  double tap_rho(double const rhosq, double cut_rhosq, double & drhosq);
 
   // helper
-  double rsq_rij(const int i, const int j, double *const rij);
+  double dot(double const * const x, double const * const y);
 
-  double dot(const double x[DIM], const double y[DIM]);
+  void deriv_cross(double const * const rk, double const * const rl,
+      double const * const rm, double * const cross, VectorOfSizeDIM * const dcross_drk,
+      VectorOfSizeDIM * const dcross_drl, VectorOfSizeDIM * const dcross_drm);
 
-  void deriv_cross(double rk[DIM], double rl[DIM], double rm[DIM], double cross[DIM],
-      double dcross_drk[DIM][DIM], double dcross_drl[DIM][DIM],
-      double dcross_drm[DIM][DIM]);
-
-  void mat_dot_vec(double X[DIM][DIM], const double y[DIM], double z[DIM]);
+  void mat_dot_vec(VectorOfSizeDIM const * const X, double const * const y,
+        double * const z);
 
 };
 
@@ -306,12 +323,12 @@ template< bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
 int RDPImplementation::Compute(
     KIM::ModelCompute const * const modelCompute,
     KIM::ModelComputeArguments const * const modelComputeArguments,
-    const int* const particleSpecies,
-    const int* const particleContributing,
-    const VectorOfSizeDIM* const coordinates,
-    double* const energy,
-    VectorOfSizeDIM* const forces,
-    double* const particleEnergy)
+    int const * const particleSpecies,
+    int const * const particleContributing,
+    VectorOfSizeDIM const * const coordinates,
+    double * const energy,
+    VectorOfSizeDIM * const forces,
+    double * const particleEnergy)
 {
   int ier = false;
   const int Natoms = cachedNumberOfParticles_;
@@ -354,7 +371,7 @@ int RDPImplementation::Compute(
   int ** n3n; // nearest 3 neighbors of atom
   AllocateAndInitialize1DArray<int>(in_layer, Natoms);
   AllocateAndInitialize2DArray<int>(n3n, Natoms, 3);
-  VectorOfSize3Int * nearest3neigh = (VectorOfSize3Int*) nearest3neigh;
+  VectorOfSize3Int * const nearest3neigh = (VectorOfSize3Int*) n3n[0];
 
   ier = create_layers(modelCompute, modelComputeArguments, coordinates,
       in_layer, nearest3neigh);
@@ -381,15 +398,15 @@ int RDPImplementation::Compute(
       int nbi1;
       int nbi2;
       int nbi3;
-      double ni[DIM]; // normal at atom i
-      double dni_dri[DIM][DIM];
-      double dni_drnbi1[DIM][DIM];
-      double dni_drnbi2[DIM][DIM];
-      double dni_drnbi3[DIM][DIM];
+      VectorOfSizeDIM ni; // normal at atom i
+      VectorOfSizeDIM dni_dri[DIM];
+      VectorOfSizeDIM dni_drnb1[DIM];
+      VectorOfSizeDIM dni_drnb2[DIM];
+      VectorOfSizeDIM dni_drnb3[DIM];
 
       // get 3 nearest neighs of atom i and compute the derivative of ni w.r.t. them
       normal(i, coordinates, nearest3neigh, nbi1, nbi2, nbi3, ni, dni_dri,
-          dni_drnbi1, dni_drnbi2, dni_drnbi3);
+          dni_drnb1, dni_drnb2, dni_drnb3);
 
       // Setup loop over neighbors of current particle
       for (int jj = 0; jj < numnei; ++jj) {
@@ -409,15 +426,18 @@ int RDPImplementation::Compute(
 
         if (rij_sq <= cutoffSq_2D_[iSpecies][jSpecies]) {
 
-          double phi_repul = calc_repulsive(buffer, i, j, rij, rij_mag);
-          double phi_attr = calc_attractive(buffer, i, j, rij, rij_mag);
+          double phi_attr = calc_attractive(i, j, iSpecies, jSpecies, rij,
+              rij_mag, forces);
+          double phi_repul = calc_repulsive(i, j, particleSpecies, coordinates,
+              nearest3neigh, rij, rij_mag, nbi1, nbi2, nbi3, ni,
+              dni_dri, dni_drnb1, dni_drnb2, dni_drnb3, forces);
 
-          if (buffer->comp_energy) {
+          if (isComputeEnergy) {
             // HALF because of full neighborlist
             *energy += HALF * (phi_repul + phi_attr);
           }
-          if (buffer->comp_particleEnergy) {
-            for (int k=0; k<nAtoms; k++) {
+          if (isComputeParticleEnergy) {
+            for (int k=0; k<Natoms; k++) {
               particleEnergy[k] +=  HALF * (phi_repul + phi_attr);
             }
           }
@@ -427,6 +447,11 @@ int RDPImplementation::Compute(
       }  // if particles i and j interact
     }  // end of first neighbor loop
   }  // end of loop over contributing particles
+
+
+  // deallocate memory
+  Deallocate1DArray<int> (in_layer);
+  Deallocate2DArray<int> (n3n);
 
   // everything is good
   ier = false;
