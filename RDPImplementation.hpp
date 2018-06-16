@@ -47,10 +47,6 @@
 //
 //==============================================================================
 
-// type declaration for get neighbor functions
-typedef int (GetNeighborFunction)(void const * const, int const,
-                                  int * const, int const ** const);
-
 // type declaration for vector of constant dimension
 typedef double VectorOfSizeDIM[DIM];
 typedef int VectorOfSize3Int[DIM];
