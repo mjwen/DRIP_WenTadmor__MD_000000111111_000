@@ -113,6 +113,7 @@ class RDPImplementation
   //   Memory deallocated in destructor
   //   Data set in ReadParameterFile routines OR by KIM Simulator
   double* cutoff_;
+  double* rhocut_;
   double* C0_;
   double* C2_;
   double* C4_;
@@ -138,6 +139,7 @@ class RDPImplementation
   // RDPImplementation: values
   double influenceDistance_;
   double** cutoffSq_2D_;
+  double** rhocutSq_2D_;
   double** C0_2D_;
   double** C2_2D_;
   double** C4_2D_;

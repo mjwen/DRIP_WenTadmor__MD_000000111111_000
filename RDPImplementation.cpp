@@ -64,6 +64,7 @@ RDPImplementation::RDPImplementation(
 : numberModelSpecies_(0),
   numberUniqueSpeciesPairs_(0),
   cutoff_(0),
+  rhocut_(0),
   C0_(0),
   C2_(0),
   C4_(0),
@@ -76,6 +77,7 @@ RDPImplementation::RDPImplementation(
   eta_(0),
   influenceDistance_(0.0),
   cutoffSq_2D_(0),
+  rhocutSq_2D_(0),
   C0_2D_(0),
   C2_2D_(0),
   C4_2D_(0),
@@ -136,6 +138,7 @@ RDPImplementation::~RDPImplementation()
   // everything is initialized to null
 
   Deallocate1DArray<double> (cutoff_);
+  Deallocate1DArray<double> (rhocut_);
   Deallocate1DArray<double> (C0_);
   Deallocate1DArray<double> (C2_);
   Deallocate1DArray<double> (C4_);
@@ -148,6 +151,7 @@ RDPImplementation::~RDPImplementation()
   Deallocate1DArray<double> (eta_);
 
   Deallocate2DArray<double> (cutoffSq_2D_);
+  Deallocate2DArray<double> (rhocutSq_2D_);
   Deallocate2DArray<double> (C0_2D_);
   Deallocate2DArray<double> (C2_2D_);
   Deallocate2DArray<double> (C4_2D_);
@@ -313,7 +317,7 @@ int RDPImplementation::ProcessParameterFiles(
   char spec1[MAXLINE], nextLine[MAXLINE];
   int iIndex, jIndex , indx;
   double next_C0, next_C2, next_C4, next_C, next_delta, next_lambda, next_A;
-  double next_z0, next_B, next_eta, next_cutoff;
+  double next_z0, next_B, next_eta, next_rhocut, next_cutoff;
 
 
   getNextDataLine(parameterFilePointers[0], nextLine, MAXLINE, &endOfFileFlag);
@@ -342,10 +346,11 @@ int RDPImplementation::ProcessParameterFiles(
   getNextDataLine(parameterFilePointers[0], nextLine, MAXLINE, &endOfFileFlag);
   while (endOfFileFlag == 0)
   {
-    ier = sscanf(nextLine, "%s %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg",
+    ier = sscanf(nextLine, "%s %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg",
                  spec1, &next_C0, &next_C2, &next_C4, &next_C, &next_delta,
-                 &next_lambda, &next_A, &next_z0, &next_B, &next_eta, &next_cutoff);
-    if (ier != 12) {
+                 &next_lambda, &next_A, &next_z0, &next_B, &next_eta,
+                 &next_rhocut, &next_cutoff);
+    if (ier != 13) {
       sprintf(nextLine, "error reading lines of the parameter file");
       LOG_ERROR(nextLine);
       return true;
@@ -402,6 +407,7 @@ int RDPImplementation::ProcessParameterFiles(
     z0_[indx] = next_z0;
     B_[indx] = next_B;
     eta_[indx] = next_eta;
+    rhocut_[indx] = next_rhocut;
     cutoff_[indx] = next_cutoff;
 
     numberOfLinesRead += 1;
@@ -456,6 +462,7 @@ void RDPImplementation::CloseParameterFiles(
 void RDPImplementation::AllocateFreeParameterMemory()
 { // allocate memory for data
   AllocateAndInitialize1DArray<double> (cutoff_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (rhocut_, numberUniqueSpeciesPairs_);
   AllocateAndInitialize1DArray<double> (C0_, numberUniqueSpeciesPairs_);
   AllocateAndInitialize1DArray<double> (C2_, numberUniqueSpeciesPairs_);
   AllocateAndInitialize1DArray<double> (C4_, numberUniqueSpeciesPairs_);
@@ -468,6 +475,7 @@ void RDPImplementation::AllocateFreeParameterMemory()
   AllocateAndInitialize1DArray<double> (eta_, numberUniqueSpeciesPairs_);
 
   AllocateAndInitialize2DArray<double> (cutoffSq_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (rhocutSq_2D_, numberModelSpecies_, numberModelSpecies_);
   AllocateAndInitialize2DArray<double> (C0_2D_, numberModelSpecies_, numberModelSpecies_);
   AllocateAndInitialize2DArray<double> (C2_2D_, numberModelSpecies_, numberModelSpecies_);
   AllocateAndInitialize2DArray<double> (C4_2D_, numberModelSpecies_, numberModelSpecies_);
@@ -516,6 +524,7 @@ int RDPImplementation::ConvertUnits(
   if (convertLength != ONE) {
     for (int i = 0; i < numberUniqueSpeciesPairs_; ++i) {
       cutoff_[i] *= convertLength;
+      rhocut_[i] *= convertLength;
       delta_[i] *= convertLength;
       z0_[i] *= convertLength;
       lambda_[i] /= convertLength;
@@ -623,6 +632,7 @@ int RDPImplementation::RegisterKIMParameters(
      || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, z0_, "z0")
      || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, B_, "B")
      || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, eta_, "eta")
+     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, rhocut_, "rhocut")
      || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, cutoff_, "cutoff");
   if (ier) {
     LOG_ERROR("set_parameters");
@@ -670,6 +680,7 @@ int RDPImplementation::SetRefreshMutableValues(
     for (int j = 0; j <= i ; ++j) {
       int const index = j*numberModelSpecies_ + i - (j*j + j)/2;
       cutoffSq_2D_[i][j] = cutoffSq_2D_[j][i] = cutoff_[index] * cutoff_[index];
+      rhocutSq_2D_[i][j] = rhocutSq_2D_[j][i] = rhocut_[index] * rhocut_[index];
       C0_2D_[i][j] = C0_2D_[j][i] = C0_[index];
       C2_2D_[i][j] = C2_2D_[j][i] = C2_[index];
       C4_2D_[i][j] = C4_2D_[j][i] = C4_[index];
@@ -1300,6 +1311,7 @@ double RDPImplementation::dihedral(const int i, const int j,
   int jspec = particleSpecies[j];
   double B = B_2D_[ispec][jspec];
   double eta = eta_2D_[ispec][jspec];
+  double cut_rhosq = rhocutSq_2D_[ispec][jspec];
 
   // local vars
   double cos_kl[3][3];          // cos_omega_k1ijl1, cos_omega_k1ijl2 ...
@@ -1307,8 +1319,6 @@ double RDPImplementation::dihedral(const int i, const int j,
   double dcos_kl[3][3][4][DIM]; // 4 indicates k, i, j, l, e.g. dcoskl[0][1][0] means
                                 // dcos_omega_k1ijl2 / drk
 
-  // TODO this should be a params and read in from file
-  double cut_rhosq = (1.42*1.1)*(1.42*1.1);
 
   // if larger than cutoff of rho, return 0
   if (rhosq >= cut_rhosq) {
@@ -1344,9 +1354,9 @@ double RDPImplementation::dihedral(const int i, const int j,
     }
   }
 
-  double epart1 = exp(eta * cos_kl[0][0]*cos_kl[0][1]*cos_kl[0][2]);
-  double epart2 = exp(eta * cos_kl[1][0]*cos_kl[1][1]*cos_kl[1][2]);
-  double epart3 = exp(eta * cos_kl[2][0]*cos_kl[2][1]*cos_kl[2][2]);
+  double epart1 = exp(-eta * cos_kl[0][0]*cos_kl[0][1]*cos_kl[0][2]);
+  double epart2 = exp(-eta * cos_kl[1][0]*cos_kl[1][1]*cos_kl[1][2]);
+  double epart3 = exp(-eta * cos_kl[2][0]*cos_kl[2][1]*cos_kl[2][2]);
   double  D2 = epart1 + epart2 + epart3;
 
   // cutoff function
@@ -1360,15 +1370,15 @@ double RDPImplementation::dihedral(const int i, const int j,
   d_drhosq = B*d_drhosq_tap*D2;
 
   // deriv of dihedral w.r.t cos_omega_kijl
-  d_dcos_kl[0][0] = D0* epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
-  d_dcos_kl[0][1] = D0* epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
-  d_dcos_kl[0][2] = D0* epart1 *eta *cos_kl[0][0]*cos_kl[0][1];
-  d_dcos_kl[1][0] = D0* epart2 *eta *cos_kl[1][1]*cos_kl[1][2];
-  d_dcos_kl[1][1] = D0* epart2 *eta *cos_kl[1][0]*cos_kl[1][2];
-  d_dcos_kl[1][2] = D0* epart2 *eta *cos_kl[1][0]*cos_kl[1][1];
-  d_dcos_kl[2][0] = D0* epart3 *eta *cos_kl[2][1]*cos_kl[2][2];
-  d_dcos_kl[2][1] = D0* epart3 *eta *cos_kl[2][0]*cos_kl[2][2];
-  d_dcos_kl[2][2] = D0* epart3 *eta *cos_kl[2][0]*cos_kl[2][1];
+  d_dcos_kl[0][0] = -D0* epart1 *eta *cos_kl[0][1]*cos_kl[0][2];
+  d_dcos_kl[0][1] = -D0* epart1 *eta *cos_kl[0][0]*cos_kl[0][2];
+  d_dcos_kl[0][2] = -D0* epart1 *eta *cos_kl[0][0]*cos_kl[0][1];
+  d_dcos_kl[1][0] = -D0* epart2 *eta *cos_kl[1][1]*cos_kl[1][2];
+  d_dcos_kl[1][1] = -D0* epart2 *eta *cos_kl[1][0]*cos_kl[1][2];
+  d_dcos_kl[1][2] = -D0* epart2 *eta *cos_kl[1][0]*cos_kl[1][1];
+  d_dcos_kl[2][0] = -D0* epart3 *eta *cos_kl[2][1]*cos_kl[2][2];
+  d_dcos_kl[2][1] = -D0* epart3 *eta *cos_kl[2][0]*cos_kl[2][2];
+  d_dcos_kl[2][2] = -D0* epart3 *eta *cos_kl[2][0]*cos_kl[2][1];
 
   // initialization to be zero and later add values
   for (int dim=0; dim<DIM; dim++) {
