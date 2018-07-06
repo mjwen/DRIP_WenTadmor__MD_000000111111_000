@@ -1087,16 +1087,11 @@ double RDPImplementation::calc_repulsive(int const i, int const j,
   double z0 = z0_2D_[iSpecies][jSpecies];
   double cutoff = sqrt(cutoffSq_2D_[iSpecies][jSpecies]);
 
+  // nearest 3 neighbors of atom j
+  int nbj1 = nearest3neigh[j][0];
+  int nbj2 = nearest3neigh[j][1];
+  int nbj3 = nearest3neigh[j][2];
 
-  // nearest 3 neigh of j
-  int nbj1;
-  int nbj2;
-  int nbj3;
-  VectorOfSizeDIM nj;
-  VectorOfSizeDIM dnj_drj[DIM];
-  VectorOfSizeDIM dnj_drnb1[DIM];
-  VectorOfSizeDIM dnj_drnb2[DIM];
-  VectorOfSizeDIM dnj_drnb3[DIM];
 
   VectorOfSizeDIM dgij_dri;
   VectorOfSizeDIM dgij_drj;
@@ -1106,49 +1101,22 @@ double RDPImplementation::calc_repulsive(int const i, int const j,
   VectorOfSizeDIM dgij_drl1;
   VectorOfSizeDIM dgij_drl2;
   VectorOfSizeDIM dgij_drl3;
-  VectorOfSizeDIM dgji_dri;
-  VectorOfSizeDIM dgji_drj;
-  VectorOfSizeDIM dgji_drk1;
-  VectorOfSizeDIM dgji_drk2;
-  VectorOfSizeDIM dgji_drk3;
-  VectorOfSizeDIM dgji_drl1;
-  VectorOfSizeDIM dgji_drl2;
-  VectorOfSizeDIM dgji_drl3;
 
   VectorOfSizeDIM drhosqij_dri;
   VectorOfSizeDIM drhosqij_drj;
   VectorOfSizeDIM drhosqij_drnb1;
   VectorOfSizeDIM drhosqij_drnb2;
   VectorOfSizeDIM drhosqij_drnb3;
-  VectorOfSizeDIM drhosqji_dri;
-  VectorOfSizeDIM drhosqji_drj;
-  VectorOfSizeDIM drhosqji_drnb1;
-  VectorOfSizeDIM drhosqji_drnb2;
-  VectorOfSizeDIM drhosqji_drnb3;
 
-
-  // rji
-  VectorOfSizeDIM rji;
-  rji[0] = -rij[0];
-  rji[1] = -rij[1];
-  rji[2] = -rij[2];
-
-  // get 3 nearest neighs of atom j and compute the derivative of ni w.r.t. them
-  normal(j, coordinates, nearest3neigh, nbj1, nbj2, nbj3, nj, dnj_drj, dnj_drnb1,
-      dnj_drnb2, dnj_drnb3);
 
   // derivative of rhosq w.r.t coordinates of atoms i, j, and the nearests 3 neighs of i
   get_drhosqij(rij, ni, dni_dri, dni_drnb1, dni_drnb2, dni_drnb3, drhosqij_dri,
       drhosqij_drj, drhosqij_drnb1, drhosqij_drnb2, drhosqij_drnb3);
 
-  get_drhosqij(rji, nj, dnj_drj, dnj_drnb1, dnj_drnb2, dnj_drnb3, drhosqji_drj,
-      drhosqji_dri, drhosqji_drnb1, drhosqji_drnb2, drhosqji_drnb3);
-
   // transverse decay function f(rho) and its derivative w.r.t. rhosq
-  double rhosqij, rhosqji;
-  double dtdij, dtdji;
+  double rhosqij;
+  double dtdij;
   double tdij = td(C0, C2, C4, delta, rij, r, ni, rhosqij, dtdij);
-  double tdji = td(C0, C2, C4, delta, rji, r, nj, rhosqji, dtdji);
 
   // dihedral angle function and its derivateives
   double dgij_drhosq;
@@ -1156,12 +1124,7 @@ double RDPImplementation::calc_repulsive(int const i, int const j,
       rhosqij, dgij_drhosq, dgij_dri, dgij_drj,
       dgij_drk1, dgij_drk2, dgij_drk3, dgij_drl1, dgij_drl2, dgij_drl3);
 
-  double dgji_drhosq;
-  double gji = dihedral(j, i, particleSpecies, coordinates, nearest3neigh,
-      rhosqji, dgji_drhosq, dgji_drj, dgji_dri,
-      dgji_drl1, dgji_drl2, dgji_drl3, dgji_drk1, dgji_drk2, dgji_drk3);
-
-  double V2 = C + tdij + tdji + gij + gji;
+  double V2 = C + tdij + gij;
 
   // tap part
   double dtp;
@@ -1182,30 +1145,24 @@ double RDPImplementation::calc_repulsive(int const i, int const j,
       forces[i][k] += tmp;
       forces[j][k] -= tmp;
 
-      // the following incldue the transverse decay part tdij or tdji,
-      // and the dihedral part gij or gji
+      // the following incldue the transverse decay part tdij and the dihedral part gij
       // derivative of V2 contribute to atoms i, j
-      forces[i][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_dri[k]
-          + (dtdji+dgji_drhosq)*drhosqji_dri[k] + dgij_dri[k] + dgji_dri[k] );
-      forces[j][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drj[k]
-          + (dtdji+dgji_drhosq)*drhosqji_drj[k] + dgij_drj[k] + dgji_drj[k] );
+      forces[i][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_dri[k] + dgij_dri[k]);
+      forces[j][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drj[k] + dgij_drj[k]);
 
 
       // derivative of V2 contribute to neighs of atom i
       forces[nbi1][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drnb1[k]
-          + dgij_drk1[k] + dgji_drk1[k] );
+          + dgij_drk1[k]);
       forces[nbi2][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drnb2[k]
-          + dgij_drk2[k] + dgji_drk2[k] );
+          + dgij_drk2[k]);
       forces[nbi3][k] -= HALF*tp*V1* ( (dtdij+dgij_drhosq)*drhosqij_drnb3[k]
-          + dgij_drk3[k] + dgji_drk3[k] );
+          + dgij_drk3[k]);
 
       // derivative of V2 contribute to neighs of atom j
-      forces[nbj1][k] -= HALF*tp*V1* ( (dtdji+dgji_drhosq)*drhosqji_drnb1[k]
-          + dgij_drl1[k] + dgji_drl1[k]);
-      forces[nbj2][k] -= HALF*tp*V1* ( (dtdji+dgji_drhosq)*drhosqji_drnb2[k]
-          + dgij_drl2[k] + dgji_drl2[k]);
-      forces[nbj3][k] -= HALF*tp*V1* ( (dtdji+dgji_drhosq)*drhosqji_drnb3[k]
-          + dgij_drl3[k] + dgji_drl3[k]);
+      forces[nbj1][k] -= HALF*tp*V1* dgij_drl1[k];
+      forces[nbj2][k] -= HALF*tp*V1* dgij_drl2[k];
+      forces[nbj3][k] -= HALF*tp*V1* dgij_drl3[k];
 
     }
   }
