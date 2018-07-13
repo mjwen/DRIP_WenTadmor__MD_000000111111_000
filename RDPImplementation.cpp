@@ -183,6 +183,7 @@ int RDPImplementation::Refresh(KIM::ModelRefresh* const modelRefresh)
     return ier;
   }
 
+  // nothing else to do for this case
   // everything is good
   ier = false;
   return ier;
@@ -638,20 +639,21 @@ int RDPImplementation::RegisterKIMComputeArgumentsSettings(
         KIM::SUPPORT_STATUS::optional) ||
     modelComputeArgumentsCreate->SetArgumentSupportStatus(
         KIM::COMPUTE_ARGUMENT_NAME::partialVirial,
-        KIM::SUPPORT_STATUS::optional) ||
+        KIM::SUPPORT_STATUS::notSupported) ||
     modelComputeArgumentsCreate->SetArgumentSupportStatus(
         KIM::COMPUTE_ARGUMENT_NAME::partialParticleVirial,
-        KIM::SUPPORT_STATUS::optional);
+        KIM::SUPPORT_STATUS::notSupported);
 
   // register callbacks
   LOG_INFORMATION("Register callback supportStatus");
-  error = error ||
-          modelComputeArgumentsCreate->SetCallbackSupportStatus(
-      KIM::COMPUTE_CALLBACK_NAME::ProcessDEDrTerm,
-      KIM::SUPPORT_STATUS::notSupported) ||
-          modelComputeArgumentsCreate->SetCallbackSupportStatus(
-      KIM::COMPUTE_CALLBACK_NAME::ProcessD2EDr2Term,
-      KIM::SUPPORT_STATUS::notSupported);
+  error =
+    error ||
+    modelComputeArgumentsCreate->SetCallbackSupportStatus(
+        KIM::COMPUTE_CALLBACK_NAME::ProcessDEDrTerm,
+        KIM::SUPPORT_STATUS::notSupported) ||
+    modelComputeArgumentsCreate->SetCallbackSupportStatus(
+        KIM::COMPUTE_CALLBACK_NAME::ProcessD2EDr2Term,
+        KIM::SUPPORT_STATUS::notSupported);
 
   return error;
 }
@@ -665,30 +667,31 @@ int RDPImplementation::RegisterKIMParameters(
   int ier = false;
 
   // publish parameters (order is important)
-  ier = modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, C0_, "C0") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, C2_, "C2") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, C4_, "C4") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, C_, "C") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, delta_, "delta") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, lambda_, "lambda") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, A_, "A") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, z0_, "z0") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, B_, "B") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, eta_, "eta") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, rhocut_, "rhocut") ||
-        modelDriverCreate->SetParameterPointer(
-      numberUniqueSpeciesPairs_, cutoff_, "cutoff");
+  ier =
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, C0_, "C0") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, C2_, "C2") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, C4_, "C4") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, C_, "C") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, delta_, "delta") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, lambda_, "lambda") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, A_, "A") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, z0_, "z0") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, B_, "B") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, eta_, "eta") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, rhocut_, "rhocut") ||
+    modelDriverCreate->SetParameterPointer(
+        numberUniqueSpeciesPairs_, cutoff_, "cutoff");
   if (ier) {
     LOG_ERROR("set_parameters");
     return ier;
@@ -836,13 +839,13 @@ int RDPImplementation::SetComputeMutableValues(
         (double const** const)&forces) ||
     modelComputeArguments->GetArgumentPointer(
         KIM::COMPUTE_ARGUMENT_NAME::partialParticleEnergy,
-        &particleEnergy) ||
-    modelComputeArguments->GetArgumentPointer(
-        KIM::COMPUTE_ARGUMENT_NAME::partialVirial,
-        (double const** const)&virial) ||
-    modelComputeArguments->GetArgumentPointer(
-        KIM::COMPUTE_ARGUMENT_NAME::partialParticleVirial,
-        (double const** const)&particleVirial);
+        &particleEnergy);
+  // || modelComputeArguments->GetArgumentPointer(
+  //    KIM::COMPUTE_ARGUMENT_NAME::partialVirial,
+  //    (double const** const)&virial) ||
+  //modelComputeArguments->GetArgumentPointer(
+  //    KIM::COMPUTE_ARGUMENT_NAME::partialParticleVirial,
+  //    (double const** const)&particleVirial);
   if (ier) {
     LOG_ERROR("GetArgumentPointer");
     return ier;
@@ -851,8 +854,10 @@ int RDPImplementation::SetComputeMutableValues(
   isComputeEnergy = (energy != NULL);
   isComputeForces = (forces != NULL);
   isComputeParticleEnergy = (particleEnergy != NULL);
-  isComputeVirial = (virial != NULL);
-  isComputeParticleVirial = (particleVirial != NULL);
+  isComputeVirial = false;
+  isComputeParticleVirial = false;
+  //isComputeVirial = (virial != NULL);
+  //isComputeParticleVirial = (particleVirial != NULL);
 
   // update values
   cachedNumberOfParticles_ = *numberOfParticles;
@@ -873,7 +878,8 @@ int RDPImplementation::CheckParticleSpeciesCodes(
   int ier;
 
   for (int i = 0; i < cachedNumberOfParticles_; ++i) {
-    if ((particleSpeciesCodes[i] < 0) || (particleSpeciesCodes[i] >= numberModelSpecies_)) {
+    if ((particleSpeciesCodes[i] < 0) ||
+        (particleSpeciesCodes[i] >= numberModelSpecies_)) {
       ier = true;
       LOG_ERROR("unsupported particle species codes detected");
       return ier;
@@ -946,7 +952,8 @@ int RDPImplementation::GetComputeIndex(
 //==============================================================================
 
 // create layers and find the nearest 3 neighbors of each atom
-int RDPImplementation::create_layers(KIM::ModelCompute const* const modelCompute,
+int RDPImplementation::create_layers(
+    KIM::ModelCompute const* const modelCompute,
     KIM::ModelComputeArguments const* const modelComputeArguments,
     VectorOfSizeDIM const* const coordinates,
     int* const in_layer,
@@ -1127,11 +1134,13 @@ template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
     bool isComputeEnergy, bool isComputeForces,
     bool isComputeParticleEnergy, bool isComputeVirial,
     bool isComputeParticleVirial>
-double RDPImplementation::calc_attractive(int const i, int const j,
-    int const iSpecies, int const jSpecies, double const* const rij,
-    double const r, VectorOfSizeDIM* const forces,
-      VectorOfSizeSix virial,
-      VectorOfSizeSix* const particleVirial) const
+double RDPImplementation::calc_attractive(
+    int const i, int const j,
+    int const iSpecies, int const jSpecies,
+    double const* const rij, double const r,
+    VectorOfSizeDIM* const forces,
+    VectorOfSizeSix virial,
+    VectorOfSizeSix* const particleVirial) const
 {
   // compute params
   double const z0 = z0_2D_[iSpecies][jSpecies];
@@ -1163,17 +1172,21 @@ template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
     bool isComputeEnergy, bool isComputeForces,
     bool isComputeParticleEnergy, bool isComputeVirial,
     bool isComputeParticleVirial>
-double RDPImplementation::calc_repulsive(int const i, int const j,
+double RDPImplementation::calc_repulsive(
+    int const i, int const j,
     int const* const particleSpeciesCodes,
     VectorOfSizeDIM const* const coordinates,
     VectorOfSizeThreeInt const* const nearest3neigh,
-    const double* const rij,
-    double const r, const int nbi1, const int nbi2, const int nbi3,
-    double const* const ni, VectorOfSizeDIM const* const dni_dri,
-    VectorOfSizeDIM const* const dni_drnb1, VectorOfSizeDIM const* const dni_drnb2,
-    VectorOfSizeDIM const* const dni_drnb3, VectorOfSizeDIM* const forces,
-     VectorOfSizeSix virial,
-     VectorOfSizeSix* const particleVirial) const
+    const double* const rij, double const r,
+    const int nbi1, const int nbi2, const int nbi3,
+    double const* const ni,
+    VectorOfSizeDIM const* const dni_dri,
+    VectorOfSizeDIM const* const dni_drnb1,
+    VectorOfSizeDIM const* const dni_drnb2,
+    VectorOfSizeDIM const* const dni_drnb3,
+    VectorOfSizeDIM* const forces,
+    VectorOfSizeSix virial,
+    VectorOfSizeSix* const particleVirial) const
 {
   // parameters
   int iSpecies = particleSpeciesCodes[i];
@@ -1270,11 +1283,16 @@ double RDPImplementation::calc_repulsive(int const i, int const j,
 
 
 // compute normal and its derivatives w.r.t atom ri, and its 3 nearest neighs k1, k2, k3
-void RDPImplementation::normal(const int i, VectorOfSizeDIM const* const coordinates,
+void RDPImplementation::normal(
+    const int i,
+    VectorOfSizeDIM const* const coordinates,
     VectorOfSizeThreeInt const* const nearest3neigh,
-    int& k1, int& k2, int& k3, double* const normal,
-    VectorOfSizeDIM* const dn_dri, VectorOfSizeDIM* const dn_drk1,
-    VectorOfSizeDIM* const dn_drk2, VectorOfSizeDIM* const dn_drk3) const
+    int& k1, int& k2, int& k3,
+    double* const normal,
+    VectorOfSizeDIM* const dn_dri,
+    VectorOfSizeDIM* const dn_drk1,
+    VectorOfSizeDIM* const dn_drk2,
+    VectorOfSizeDIM* const dn_drk3) const
 {
   k1 = nearest3neigh[i][0];
   k2 = nearest3neigh[i][1];
@@ -1293,14 +1311,17 @@ void RDPImplementation::normal(const int i, VectorOfSizeDIM const* const coordin
 }
 
 
-void RDPImplementation::get_drhosqij(double const* const rij,
+void RDPImplementation::get_drhosqij(
+    double const* const rij,
     double const* const ni,
     VectorOfSizeDIM const* const dni_dri,
     VectorOfSizeDIM const* const dni_drn1,
     VectorOfSizeDIM const* const dni_drn2,
     VectorOfSizeDIM const* const dni_drn3,
-    double* const drhosq_dri, double* const drhosq_drj,
-    double* const drhosq_drn1, double* const drhosq_drn2,
+    double* const drhosq_dri,
+    double* const drhosq_drj,
+    double* const drhosq_drn1,
+    double* const drhosq_drn2,
     double* const drhosq_drn3) const
 {
   int k;
@@ -1327,9 +1348,11 @@ void RDPImplementation::get_drhosqij(double const* const rij,
 
 
 // derivartive of transverse decay function f(rho) w.r.t rho
-double RDPImplementation::td(double C0, double C2, double C4, double delta,
-    double const* const rvec, double r, const double* const n, double& rho_sq,
-    double& dtd) const
+double RDPImplementation::td(
+    double C0, double C2, double C4, double delta,
+    double const* const rvec, double r,
+    const double* const n,
+    double& rho_sq, double& dtd) const
 {
   double n_dot_r = dot(n, rvec);
 
@@ -1349,14 +1372,16 @@ double RDPImplementation::td(double C0, double C2, double C4, double delta,
 
 
 // derivartive of dihedral angle func gij w.r.t rho, and atom positions
-double RDPImplementation::dihedral(const int i, const int j,
+double RDPImplementation::dihedral(
+    const int i, const int j,
     int const* const particleSpeciesCodes,
     VectorOfSizeDIM const* const coordinates,
     VectorOfSizeThreeInt const* const nearest3neigh,
     double const rhosq,
-    double& d_drhosq, double * const d_dri, double * const d_drj,
-    double * const d_drk1, double * const d_drk2, double * const d_drk3,
-    double * const d_drl1, double * const d_drl2, double * const d_drl3) const
+    double& d_drhosq,
+    double* const d_dri, double* const d_drj,
+    double* const d_drk1, double* const d_drk2, double* const d_drk3,
+    double* const d_drl1, double* const d_drl2, double* const d_drl3) const
 {
   // get parameter
   int ispec = particleSpeciesCodes[i];
@@ -1467,9 +1492,14 @@ double RDPImplementation::dihedral(const int i, const int j,
 
 
 // compute cos(omega_kijl) and the derivateives
-double RDPImplementation::deriv_cos_omega(double const* const rk,
-    double const* const ri, double const* const rj, double const* const rl,
-    double* const dcos_drk, double* const dcos_dri, double* const dcos_drj,
+double RDPImplementation::deriv_cos_omega(
+    double const* const rk,
+    double const* const ri,
+    double const* const rj,
+    double const* const rl,
+    double* const dcos_drk,
+    double* const dcos_dri,
+    double* const dcos_drj,
     double* const dcos_drl) const
 {
   double ejik[DIM];
@@ -1547,7 +1577,8 @@ double RDPImplementation::tap(double r, double cutoff, double& dtap) const
     double roc = (r - r_min) / (cutoff - r_min);
     double roc_sq = roc * roc;
     t = roc_sq * roc_sq * (-35.0 + 84.0 * roc + roc_sq * (-70.0 + 20.0 * roc)) + 1;
-    dtap = roc_sq * roc / (cutoff - r_min) * (-140.0 + 420.0 * roc + roc_sq * (-420.0 + 140.0 * roc));
+    dtap = roc_sq * roc / (cutoff - r_min)
+           * (-140.0 + 420.0 * roc + roc_sq * (-420.0 + 140.0 * roc));
   }
 
   return t;
@@ -1564,6 +1595,7 @@ double RDPImplementation::tap_rho(double rhosq, double cut_rhosq, double& drhosq
   roc_sq = rhosq / cut_rhosq;
   roc = sqrt(roc_sq);
   t = roc_sq * roc_sq * (-35.0 + 84.0 * roc + roc_sq * (-70.0 + 20.0 * roc)) + 1;
+
   // Note this dtap/drho_sq not dtap/drho
   drhosq = roc_sq / cut_rhosq * (-70.0 + 210.0 * roc + roc_sq * (-210.0 + 70.0 * roc));
 
@@ -1581,8 +1613,10 @@ double RDPImplementation::dot(double const* const x, double const* const y) cons
 
 
 // matrix  product a vector, return a vector
-void RDPImplementation::mat_dot_vec(VectorOfSizeDIM const* const X,
-    double const* const y, double* const z) const
+void RDPImplementation::mat_dot_vec(
+    VectorOfSizeDIM const* const X,
+    double const* const y,
+    double* const z) const
 {
   int k;
 
@@ -1596,9 +1630,14 @@ void RDPImplementation::mat_dot_vec(VectorOfSizeDIM const* const X,
 //   w.r.t rk, rl, rm.
 //  NOTE, the dcross_drk, dcross_drl, and dcross_drm is actually the transpose of the
 //  actual one.
-void RDPImplementation::deriv_cross(double const* const rk, double const* const rl,
-    double const* const rm, double* const cross, VectorOfSizeDIM* const dcross_drk,
-    VectorOfSizeDIM* const dcross_drl, VectorOfSizeDIM* const dcross_drm) const
+void RDPImplementation::deriv_cross(
+    double const* const rk,
+    double const* const rl,
+    double const* const rm,
+    double* const cross,
+    VectorOfSizeDIM* const dcross_drk,
+    VectorOfSizeDIM* const dcross_drl,
+    VectorOfSizeDIM* const dcross_drm) const
 {
   double x[DIM];
   double y[DIM];

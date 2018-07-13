@@ -155,7 +155,6 @@ private:
 
   // Helper methods
   //
-  //
   // Related to constructor
   void AllocatePrivateParameterMemory();
   void AllocateParameterMemory();
@@ -273,7 +272,8 @@ private:
       VectorOfSizeThreeInt const* const nearest3neigh,
       const double* const rij, double const r,
       const int nbj1, const int nbj2, const int nbj3,
-      double const* const ni, VectorOfSizeDIM const* const dni_dri,
+      double const* const ni,
+      VectorOfSizeDIM const* const dni_dri,
       VectorOfSizeDIM const* const dni_drnb1,
       VectorOfSizeDIM const* const dni_drnb2,
       VectorOfSizeDIM const* const dni_drnb3,
@@ -295,8 +295,8 @@ private:
   double td(
       double C0, double C2, double C4, double delta,
       double const* const rvec, double r,
-      const double* const n, double& rho_sq,
-      double& dtd) const;
+      const double* const n,
+      double& rho_sq, double& dtd) const;
 
   void get_drhosqij(
       double const* const rij,
@@ -317,9 +317,10 @@ private:
       VectorOfSizeDIM const* const coordinates,
       VectorOfSizeThreeInt const* const nearest3neigh,
       double const rhosq,
-      double& d_drhosq, double * const d_dri, double * const d_drj,
-      double * const d_drk1, double * const d_drk2, double * const d_drk3,
-      double * const d_drl1, double * const d_drl2, double * const d_drl3) const;
+      double& d_drhosq,
+      double* const d_dri, double* const d_drj,
+      double* const d_drk1, double* const d_drk2, double* const d_drk3,
+      double* const d_drl1, double* const d_drl2, double* const d_drl3) const;
 
   double deriv_cos_omega(
       double const* const rk,
@@ -338,7 +339,8 @@ private:
   // helper
   double dot(double const* const x, double const* const y) const;
 
-  void deriv_cross(double const* const rk,
+  void deriv_cross(
+      double const* const rk,
       double const* const rl,
       double const* const rm,
       double* const cross,
@@ -346,7 +348,9 @@ private:
       VectorOfSizeDIM* const dcross_drl,
       VectorOfSizeDIM* const dcross_drm) const;
 
-  void mat_dot_vec(VectorOfSizeDIM const* const x, double const* const y,
+  void mat_dot_vec(
+      VectorOfSizeDIM const* const X,
+      double const* const y,
       double* const z) const;
 };
 
@@ -393,16 +397,30 @@ int RDPImplementation::Compute(
     *energy = 0.0;
   }
 
+  if (isComputeForces == true) {
+    for (int i = 0; i < Natoms; ++i) {
+      for (int j = 0; j < DIM; ++j) {
+        forces[i][j] = 0.0;
+      }
+    }
+  }
+
   if (isComputeParticleEnergy == true) {
     for (int i = 0; i < Natoms; ++i) {
       particleEnergy[i] = 0.0;
     }
   }
 
-  if (isComputeForces == true) {
+  if (isComputeVirial == true) {
+    for (int i = 0; i < 6; ++i) {
+      virial[i] = 0.0;
+    }
+  }
+
+  if (isComputeParticleVirial == true) {
     for (int i = 0; i < Natoms; ++i) {
-      for (int j = 0; j < DIM; ++j) {
-        forces[i][j] = 0.0;
+      for (int j = 0; j < 6; ++j) {
+        particleVirial[i][j] = 0.0;
       }
     }
   }
@@ -423,8 +441,6 @@ int RDPImplementation::Compute(
   }
 
 
-  // calculate contribution from pair function
-  //
   // Setup loop over contributing particles
   int i = 0;
   int numnei = 0;
@@ -455,6 +471,8 @@ int RDPImplementation::Compute(
         int const j = n1atom[jj];
         int const jSpecies = particleSpeciesCodes[j];
         int const jlayer = in_layer[j];
+
+        // interactions only between layers
         if (ilayer == jlayer) {
           continue;
         }
@@ -470,38 +488,40 @@ int RDPImplementation::Compute(
         double const rij_mag = sqrt(rij_sq);
 
         if (rij_sq <= cutoffSq_2D_[iSpecies][jSpecies]) {
+          // attractive part
           double phi_attr = calc_attractive<
               isComputeProcess_dEdr, isComputeProcess_d2Edr2,
               isComputeEnergy, isComputeForces,
               isComputeParticleEnergy, isComputeVirial,
               isComputeParticleVirial> (
-              i, j, iSpecies, jSpecies, rij,
-                              rij_mag,
-                              forces,
-                              virial,
-                              particleVirial
-                              );
+            i, j, iSpecies, jSpecies,
+            rij, rij_mag,
+            forces, virial, particleVirial
+            );
+
+
+          // repulsive part
           double phi_repul = calc_repulsive<
               isComputeProcess_dEdr, isComputeProcess_d2Edr2,
               isComputeEnergy, isComputeForces,
               isComputeParticleEnergy, isComputeVirial,
               isComputeParticleVirial> (
-              i, j, particleSpeciesCodes, coordinates,
-                               nearest3neigh, rij, rij_mag, nbi1, nbi2, nbi3, ni,
-                               dni_dri, dni_drnb1, dni_drnb2, dni_drnb3,
-                               forces,
-                               virial,
-                               particleVirial
-                               );
+            i, j, particleSpeciesCodes,
+            coordinates, nearest3neigh,
+            rij, rij_mag,
+            nbi1, nbi2, nbi3, ni,
+            dni_dri, dni_drnb1, dni_drnb2, dni_drnb3,
+            forces, virial, particleVirial
+            );
 
           if (isComputeEnergy) {
             // HALF because of full neighborlist
             *energy += HALF * (phi_repul + phi_attr);
           }
           if (isComputeParticleEnergy) {
-            for (int k = 0; k < Natoms; k++) {
-              particleEnergy[k] += HALF * (phi_repul + phi_attr);
-            }
+            double halve = 0.5 * HALF * (phi_repul + phi_attr);
+            particleEnergy[i] += halve;
+            particleEnergy[j] += halve;
           }
         } // if particleContributing
       }   // if particles i and j interact
