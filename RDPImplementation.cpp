@@ -24,6 +24,7 @@
 //
 // Contributors:
 //    Mingjian Wen
+//
 
 
 #include <cmath>
@@ -33,14 +34,8 @@
 #include <iostream>
 #include <map>
 
-#include "KIM_Numbering.hpp"
-#include "KIM_LanguageName.hpp"
-#include "KIM_SpeciesName.hpp"
-#include "KIM_SupportStatus.hpp"
-#include "KIM_ComputeArgumentName.hpp"
-#include "KIM_ComputeCallbackName.hpp"
 #include "RDPImplementation.hpp"
-#include "helper.hpp"
+#include "KIM_ModelDriverHeaders.hpp"
 
 #define MAXLINE 1024
 
@@ -63,31 +58,33 @@ RDPImplementation::RDPImplementation(
     int * const ier)
 : numberModelSpecies_(0),
   numberUniqueSpeciesPairs_(0),
-  cutoff_(0),
-  rhocut_(0),
-  C0_(0),
-  C2_(0),
-  C4_(0),
-  C_(0),
-  delta_(0),
-  lambda_(0),
-  A_(0),
-  z0_(0),
-  B_(0),
-  eta_(0),
+  cutoff_(NULL),
+  rhocut_(NULL),
+  C0_(NULL),
+  C2_(NULL),
+  C4_(NULL),
+  C_(NULL),
+  delta_(NULL),
+  lambda_(NULL),
+  A_(NULL),
+  z0_(NULL),
+  B_(NULL),
+  eta_(NULL),
   influenceDistance_(0.0),
-  cutoffSq_2D_(0),
-  rhocutSq_2D_(0),
-  C0_2D_(0),
-  C2_2D_(0),
-  C4_2D_(0),
-  C_2D_(0),
-  delta_2D_(0),
-  lambda_2D_(0),
-  A_2D_(0),
-  z0_2D_(0),
-  B_2D_(0),
-  eta_2D_(0),
+  paddingNeighborHints_(0),
+  halfListHints_(0),
+  cutoffSq_2D_(NULL),
+  rhocutSq_2D_(NULL),
+  C0_2D_(NULL),
+  C2_2D_(NULL),
+  C4_2D_(NULL),
+  C_2D_(NULL),
+  delta_2D_(NULL),
+  lambda_2D_(NULL),
+  A_2D_(NULL),
+  z0_2D_(NULL),
+  B_2D_(NULL),
+  eta_2D_(NULL),
   cachedNumberOfParticles_(0),
   cachedIsComputeEnergy_(0),
   cachedIsComputeParticleEnergy_(0),
@@ -165,8 +162,7 @@ RDPImplementation::~RDPImplementation()
 }
 
 //******************************************************************************
-int RDPImplementation::Refresh(
-    KIM::ModelRefresh * const modelRefresh)
+int RDPImplementation::Refresh( KIM::ModelRefresh * const modelRefresh)
 {
   int ier;
 
@@ -193,27 +189,31 @@ int RDPImplementation::Compute(
   bool isComputeEnergy = false;
   bool isComputeForces = false;
   bool isComputeParticleEnergy = false;
+  bool isComputeVirial = false;
+  bool isComputeParticleVirial = false;
   //
   // KIM API Model Input
-  int const* particleSpecies = 0;
-  int const* particleContributing = 0;
-  VectorOfSizeDIM const* coordinates = 0;
+  int const* particleSpeciesCodes = NULL;
+  int const* particleContributing = NULL;
+  VectorOfSizeDIM const* coordinates = NULL;
   //
   // KIM API Model Output
-  double* energy = 0;
-  double* particleEnergy = 0;
-  VectorOfSizeDIM* forces = 0;
+  double* energy = NULL;
+  double* particleEnergy = NULL;
+  VectorOfSizeDIM* forces = NULL;
+  VectorOfSizeSix* virial = NULL;
+  VectorOfSizeSix* particleVirial = NULL;
   ier = SetComputeMutableValues(modelComputeArguments,
-                                isComputeProcess_dEdr,
-                                isComputeProcess_d2Edr2, isComputeEnergy,
-                                isComputeForces, isComputeParticleEnergy,
-                                particleSpecies, particleContributing,
-                                coordinates, energy, particleEnergy, forces);
+      isComputeProcess_dEdr, isComputeProcess_d2Edr2,
+      isComputeEnergy, isComputeForces, isComputeParticleEnergy,
+      isComputeVirial, isComputeParticleVirial,
+      particleSpeciesCodes, particleContributing, coordinates,
+      energy, forces, particleEnergy, virial, particleVirial);
   if (ier) return ier;
 
   // Skip this check for efficiency
   //
-  // ier = CheckParticleSpecies(pkim, particleSpecies);
+  //ier = CheckParticleSpecies(modelComputeArguments, particleSpeciesCodes);
   // if (ier) return ier;
 
 
@@ -262,6 +262,44 @@ int RDPImplementation::ComputeArgumentsDestroy(
 //
 //==============================================================================
 
+///******************************************************************************
+void RDPImplementation::AllocatePrivateParameterMemory()
+{
+  // nothing to do for this case
+}
+
+
+//******************************************************************************
+void RDPImplementation::AllocateParameterMemory()
+{ // allocate memory for data
+  AllocateAndInitialize1DArray<double> (cutoff_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (rhocut_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (C0_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (C2_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (C4_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (C_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (delta_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (lambda_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (A_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (z0_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (B_, numberUniqueSpeciesPairs_);
+  AllocateAndInitialize1DArray<double> (eta_, numberUniqueSpeciesPairs_);
+
+  AllocateAndInitialize2DArray<double> (cutoffSq_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (rhocutSq_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (C0_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (C2_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (C4_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (C_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (delta_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (lambda_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (A_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (z0_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (B_2D_, numberModelSpecies_, numberModelSpecies_);
+  AllocateAndInitialize2DArray<double> (eta_2D_, numberModelSpecies_, numberModelSpecies_);
+
+}
+
 //******************************************************************************
 #include "KIM_ModelDriverCreateLogMacros.hpp"
 int RDPImplementation::OpenParameterFiles(
@@ -306,6 +344,7 @@ int RDPImplementation::OpenParameterFiles(
 }
 
 //******************************************************************************
+#include "KIM_ModelDriverCreateLogMacros.hpp"
 int RDPImplementation::ProcessParameterFiles(
     KIM::ModelDriverCreate * const modelDriverCreate,
     int const numberParameterFiles,
@@ -333,12 +372,11 @@ int RDPImplementation::ProcessParameterFiles(
   numberUniqueSpeciesPairs_ = ((numberModelSpecies_+1)*numberModelSpecies_)/2;
 
   // allocate memory for all parameters
-  AllocateFreeParameterMemory();
+  AllocateParameterMemory();
 
 
   // keep track of known species
-  std::map<KIM::SpeciesName const, int, KIM::SPECIES_NAME::Comparator>
-      modelSpeciesMap;
+  std::map<KIM::SpeciesName const, int, KIM::SPECIES_NAME::Comparator> modelSpeciesMap;
   int index = 0;   // species code integer code starting from 0
 
   // Read and process data lines
@@ -459,37 +497,6 @@ void RDPImplementation::CloseParameterFiles(
 }
 
 //******************************************************************************
-void RDPImplementation::AllocateFreeParameterMemory()
-{ // allocate memory for data
-  AllocateAndInitialize1DArray<double> (cutoff_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (rhocut_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (C0_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (C2_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (C4_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (C_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (delta_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (lambda_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (A_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (z0_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (B_, numberUniqueSpeciesPairs_);
-  AllocateAndInitialize1DArray<double> (eta_, numberUniqueSpeciesPairs_);
-
-  AllocateAndInitialize2DArray<double> (cutoffSq_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (rhocutSq_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (C0_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (C2_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (C4_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (C_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (delta_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (lambda_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (A_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (z0_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (B_2D_, numberModelSpecies_, numberModelSpecies_);
-  AllocateAndInitialize2DArray<double> (eta_2D_, numberModelSpecies_, numberModelSpecies_);
-
-}
-
-//******************************************************************************
 #include "KIM_ModelDriverCreateLogMacros.hpp"
 int RDPImplementation::ConvertUnits(
     KIM::ModelDriverCreate * const modelDriverCreate,
@@ -590,16 +597,24 @@ int RDPImplementation::RegisterKIMComputeArgumentsSettings(
 {
   // register arguments
   LOG_INFORMATION("Register argument supportStatus");
+
+
   int error =
-      modelComputeArgumentsCreate->SetArgumentSupportStatus(
-          KIM::COMPUTE_ARGUMENT_NAME::partialEnergy,
-          KIM::SUPPORT_STATUS::optional)
-      || modelComputeArgumentsCreate->SetArgumentSupportStatus(
-          KIM::COMPUTE_ARGUMENT_NAME::partialForces,
-          KIM::SUPPORT_STATUS::optional)
-      || modelComputeArgumentsCreate->SetArgumentSupportStatus(
-          KIM::COMPUTE_ARGUMENT_NAME::partialParticleEnergy,
-          KIM::SUPPORT_STATUS::optional);
+    modelComputeArgumentsCreate->SetArgumentSupportStatus(
+        KIM::COMPUTE_ARGUMENT_NAME::partialEnergy,
+        KIM::SUPPORT_STATUS::optional) ||
+    modelComputeArgumentsCreate->SetArgumentSupportStatus(
+        KIM::COMPUTE_ARGUMENT_NAME::partialForces,
+        KIM::SUPPORT_STATUS::optional) ||
+    modelComputeArgumentsCreate->SetArgumentSupportStatus(
+        KIM::COMPUTE_ARGUMENT_NAME::partialParticleEnergy,
+        KIM::SUPPORT_STATUS::optional) ||
+    modelComputeArgumentsCreate->SetArgumentSupportStatus(
+        KIM::COMPUTE_ARGUMENT_NAME::partialVirial,
+        KIM::SUPPORT_STATUS::optional) ||
+    modelComputeArgumentsCreate->SetArgumentSupportStatus(
+        KIM::COMPUTE_ARGUMENT_NAME::partialParticleVirial,
+        KIM::SUPPORT_STATUS::optional);
 
   // register callbacks
   LOG_INFORMATION("Register callback supportStatus");
@@ -622,18 +637,30 @@ int RDPImplementation::RegisterKIMParameters(
   int ier = false;
 
   // publish parameters (order is important)
-  ier = modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C0_, "C0")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C2_, "C2")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C4_, "C4")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, C_, "C")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, delta_, "delta")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, lambda_, "lambda")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, A_, "A")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, z0_, "z0")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, B_, "B")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, eta_, "eta")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, rhocut_, "rhocut")
-     || modelDriverCreate->SetParameterPointer(numberUniqueSpeciesPairs_, cutoff_, "cutoff");
+  ier = modelDriverCreate->SetParameterPointer(
+  numberUniqueSpeciesPairs_, C0_, "C0")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, C2_, "C2")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, C4_, "C4")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, C_, "C")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, delta_, "delta")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, lambda_, "lambda")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, A_, "A")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, z0_, "z0")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, B_, "B")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, eta_, "eta")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, rhocut_, "rhocut")
+     || modelDriverCreate->SetParameterPointer(
+     numberUniqueSpeciesPairs_, cutoff_, "cutoff");
   if (ier) {
     LOG_ERROR("set_parameters");
     return ier;
@@ -652,18 +679,23 @@ int RDPImplementation::RegisterKIMFunctions(
   int error;
 
   // register the Destroy(), Refresh(), and Compute() functions
-  error = modelDriverCreate->SetDestroyPointer(
-      KIM::LANGUAGE_NAME::cpp, (KIM::func*) &(RDP::Destroy))
+  error =
+      modelDriverCreate->SetDestroyPointer(
+      KIM::LANGUAGE_NAME::cpp,
+      (KIM::func*) &(RDP::Destroy))
       || modelDriverCreate->SetRefreshPointer(
-          KIM::LANGUAGE_NAME::cpp, (KIM::func*) &(RDP::Refresh))
+          KIM::LANGUAGE_NAME::cpp,
+          (KIM::func*) &(RDP::Refresh))
       || modelDriverCreate->SetComputePointer(
-          KIM::LANGUAGE_NAME::cpp, (KIM::func*) &(RDP::Compute))
+          KIM::LANGUAGE_NAME::cpp,
+          (KIM::func*) &(RDP::Compute))
       || modelDriverCreate->SetComputeArgumentsCreatePointer(
           KIM::LANGUAGE_NAME::cpp,
           (KIM::func*) &(RDP::ComputeArgumentsCreate))
       || modelDriverCreate->SetComputeArgumentsDestroyPointer(
           KIM::LANGUAGE_NAME::cpp,
           (KIM::func*) &(RDP::ComputeArgumentsDestroy));
+
 
   return error;
 }
@@ -672,7 +704,10 @@ int RDPImplementation::RegisterKIMFunctions(
 template<class ModelObj>
 int RDPImplementation::SetRefreshMutableValues(
     ModelObj * const modelObj)
-{ // use (possibly) new values of free parameters to compute other quantities
+{ // use (possibly) new values of parameters to compute other quantities
+  // NOTE: This function is templated because it's called with both a
+  //       modelDriverCreate object during initialization and with a
+  //       modelRefresh object when the Model's parameters have been altered
   int ier;
 
   // update parameters
@@ -711,7 +746,8 @@ int RDPImplementation::SetRefreshMutableValues(
 
   influenceDistance_ = sqrt(influenceDistance_);
   modelObj->SetInfluenceDistancePointer(&influenceDistance_);
-  modelObj->SetNeighborListCutoffsPointer(1, &influenceDistance_);
+  modelObj->SetNeighborListPointers(1,
+      &influenceDistance_, &paddingNeighborHints_, &halfListHints_);
 
 
   // everything is good
@@ -728,28 +764,23 @@ int RDPImplementation::SetComputeMutableValues(
     bool& isComputeEnergy,
     bool& isComputeForces,
     bool& isComputeParticleEnergy,
+    bool& isComputeVirial,
+    bool& isComputeParticleVirial,
     int const*& particleSpeciesCodes,
     int const*& particleContributing,
     VectorOfSizeDIM const*& coordinates,
     double*& energy,
+    VectorOfSizeDIM*& forces,
     double*& particleEnergy,
-    VectorOfSizeDIM*& forces)
+    VectorOfSizeSix*& virial,
+    VectorOfSizeSix*& particleVirial)
 {
   int ier = true;
 
-  // get compute flags
-  int compProcess_dEdr;
-  int compProcess_d2Edr2;
 
-  modelComputeArguments->IsCallbackPresent(
-      KIM::COMPUTE_CALLBACK_NAME::ProcessDEDrTerm,
-      &compProcess_dEdr);
-  modelComputeArguments->IsCallbackPresent(
-      KIM::COMPUTE_CALLBACK_NAME::ProcessD2EDr2Term,
-      &compProcess_d2Edr2);
-
-  isComputeProcess_dEdr = compProcess_dEdr;
-  isComputeProcess_d2Edr2 = compProcess_d2Edr2;
+  // callback not supported
+  isComputeProcess_dEdr = false;
+  isComputeProcess_d2Edr2 = false;
 
 
   int const* numberOfParticles;
@@ -769,21 +800,28 @@ int RDPImplementation::SetComputeMutableValues(
       || modelComputeArguments->GetArgumentPointer(
           KIM::COMPUTE_ARGUMENT_NAME::partialEnergy,
           &energy)
-      || modelComputeArguments->GetArgumentPointer(
-          KIM::COMPUTE_ARGUMENT_NAME::partialParticleEnergy,
-          &particleEnergy)
-      || modelComputeArguments->GetArgumentPointer(
-          KIM::COMPUTE_ARGUMENT_NAME::partialForces,
-          (double const ** const) &forces);
-  if (ier)
-  {
+      ||  modelComputeArguments->GetArgumentPointer(
+        KIM::COMPUTE_ARGUMENT_NAME::partialForces,
+        (double const** const)&forces) ||
+    modelComputeArguments->GetArgumentPointer(
+        KIM::COMPUTE_ARGUMENT_NAME::partialParticleEnergy,
+        &particleEnergy) ||
+    modelComputeArguments->GetArgumentPointer(
+        KIM::COMPUTE_ARGUMENT_NAME::partialVirial,
+        (double const** const)&virial) ||
+    modelComputeArguments->GetArgumentPointer(
+        KIM::COMPUTE_ARGUMENT_NAME::partialParticleVirial,
+        (double const** const)&particleVirial);
+  if (ier) {
     LOG_ERROR("GetArgumentPointer");
     return ier;
   }
 
-  isComputeEnergy = (energy != 0);
-  isComputeParticleEnergy = (particleEnergy != 0);
-  isComputeForces = (forces != 0);
+  isComputeEnergy = (energy != NULL);
+  isComputeForces = (forces != NULL);
+  isComputeParticleEnergy = (particleEnergy != NULL);
+  isComputeVirial = (virial != NULL);
+  isComputeParticleVirial = (particleVirial != NULL);
 
   // update values
   cachedNumberOfParticles_ = *numberOfParticles;
@@ -796,16 +834,15 @@ int RDPImplementation::SetComputeMutableValues(
 //******************************************************************************
 // Assume that the particle species interge code starts from 0
 #include "KIM_ModelComputeLogMacros.hpp"
-int RDPImplementation::CheckParticleSpecies(
+int RDPImplementation::CheckParticleSpeciesCodes(
     KIM::ModelCompute const * const modelCompute,
-    int const* const particleSpecies)
-    const
+    int const* const particleSpeciesCodes) const
 {
   int ier;
   for (int i = 0; i < cachedNumberOfParticles_; ++i) {
-    if ((particleSpecies[i] < 0) || (particleSpecies[i] >= numberModelSpecies_)) {
+    if ((particleSpeciesCodes[i] < 0) || (particleSpeciesCodes[i] >= numberModelSpecies_)) {
       ier = true;
-      LOG_ERROR("unsupported particle species detected");
+      LOG_ERROR("unsupported particle species codes detected");
       return ier;
     }
   }
@@ -821,30 +858,47 @@ int RDPImplementation::GetComputeIndex(
     const bool& isComputeProcess_d2Edr2,
     const bool& isComputeEnergy,
     const bool& isComputeForces,
-    const bool& isComputeParticleEnergy) const
+    const bool& isComputeParticleEnergy,
+    const bool& isComputeVirial,
+    const bool& isComputeParticleVirial) const
 {
+  //const int processdE = 2;
   const int processd2E = 2;
   const int energy = 2;
   const int force = 2;
   const int particleEnergy = 2;
+  const int virial = 2;
+  const int particleVirial = 2;
 
 
   int index = 0;
 
   // processdE
-  index += (int(isComputeProcess_dEdr)) * processd2E * energy * force * particleEnergy;
+  index += (int(isComputeProcess_dEdr))
+           * processd2E * energy * force * particleEnergy * virial * particleVirial;
 
   // processd2E
-  index += (int(isComputeProcess_d2Edr2)) * energy * force * particleEnergy;
+  index += (int(isComputeProcess_d2Edr2))
+           * energy * force * particleEnergy * virial * particleVirial;
 
   // energy
-  index += (int(isComputeEnergy)) * force * particleEnergy;
+  index += (int(isComputeEnergy))
+           * force * particleEnergy * virial * particleVirial;
 
   // force
-  index += (int(isComputeForces)) * particleEnergy;
+  index += (int(isComputeForces))
+           * particleEnergy * virial * particleVirial;
 
   // particleEnergy
-  index += (int(isComputeParticleEnergy));
+  index += (int(isComputeParticleEnergy))
+           * virial * particleVirial;
+
+  // virial
+  index += (int(isComputeVirial))
+           * particleVirial;
+
+  // particleVirial
+  index += (int(isComputeParticleVirial));
 
 
   return index;
@@ -862,7 +916,7 @@ int RDPImplementation::create_layers(KIM::ModelCompute const * const modelComput
     KIM::ModelComputeArguments const * const modelComputeArguments,
     VectorOfSizeDIM const * const coordinates,
     int * const in_layer,
-    VectorOfSize3Int * const nearest3neigh)
+    VectorOfSizeThreeInt * const nearest3neigh) const
 {
 
 
@@ -1031,7 +1085,7 @@ int RDPImplementation::create_layers(KIM::ModelCompute const * const modelComput
 // the r^{-6} attractive part
 double RDPImplementation::calc_attractive(int const i, int const j,
     int const iSpecies, int const jSpecies, double const * const rij,
-    double const r, VectorOfSizeDIM * const forces)
+    double const r, VectorOfSizeDIM * const forces) const
 {
   // compute flags
   int const comp_forces = cachedIsComputeForces_;
@@ -1063,21 +1117,21 @@ double RDPImplementation::calc_attractive(int const i, int const j,
 
 // the repulsive part
 double RDPImplementation::calc_repulsive(int const i, int const j,
-    int const * const particleSpecies,
+    int const * const particleSpeciesCodes,
     VectorOfSizeDIM const * const coordinates,
-    VectorOfSize3Int const * const nearest3neigh,
+    VectorOfSizeThreeInt const * const nearest3neigh,
     const double * const rij,
     double const r, const int nbi1, const int nbi2, const int nbi3,
     double const * const ni,  VectorOfSizeDIM const * const dni_dri,
     VectorOfSizeDIM const * const dni_drnb1, VectorOfSizeDIM const * const dni_drnb2,
-    VectorOfSizeDIM const * const dni_drnb3, VectorOfSizeDIM * const forces)
+    VectorOfSizeDIM const * const dni_drnb3, VectorOfSizeDIM * const forces) const
 {
   // compute flags
   int const comp_forces = cachedIsComputeForces_;
 
   // parameters
-  int iSpecies = particleSpecies[i];
-  int jSpecies = particleSpecies[j];
+  int iSpecies = particleSpeciesCodes[i];
+  int jSpecies = particleSpeciesCodes[j];
   double C0 = C0_2D_[iSpecies][jSpecies];
   double C2 = C2_2D_[iSpecies][jSpecies];
   double C4 = C4_2D_[iSpecies][jSpecies];
@@ -1120,7 +1174,7 @@ double RDPImplementation::calc_repulsive(int const i, int const j,
 
   // dihedral angle function and its derivateives
   double dgij_drhosq;
-  double gij = dihedral(i, j, particleSpecies, coordinates, nearest3neigh,
+  double gij = dihedral(i, j, particleSpeciesCodes, coordinates, nearest3neigh,
       rhosqij, dgij_drhosq, dgij_dri, dgij_drj,
       dgij_drk1, dgij_drk2, dgij_drk3, dgij_drl1, dgij_drl2, dgij_drl3);
 
@@ -1173,10 +1227,10 @@ double RDPImplementation::calc_repulsive(int const i, int const j,
 
 // compute normal and its derivatives w.r.t atom ri, and its 3 nearest neighs k1, k2, k3
 void RDPImplementation::normal(const int i, VectorOfSizeDIM const * const coordinates,
-    VectorOfSize3Int const * const nearest3neigh,
+    VectorOfSizeThreeInt const * const nearest3neigh,
     int & k1, int & k2, int & k3, double * const normal,
     VectorOfSizeDIM * const dn_dri, VectorOfSizeDIM * const dn_drk1,
-    VectorOfSizeDIM * const dn_drk2, VectorOfSizeDIM * const dn_drk3)
+    VectorOfSizeDIM * const dn_drk2, VectorOfSizeDIM * const dn_drk3) const
 {
 
   k1 = nearest3neigh[i][0];
@@ -1204,7 +1258,7 @@ void RDPImplementation::get_drhosqij(double const * const rij,
     VectorOfSizeDIM const * const dni_drn3,
     double * const drhosq_dri, double * const drhosq_drj,
     double * const drhosq_drn1, double * const drhosq_drn2,
-    double * const drhosq_drn3)
+    double * const drhosq_drn3) const
 {
 
   int k;
@@ -1234,7 +1288,7 @@ void RDPImplementation::get_drhosqij(double const * const rij,
 // derivartive of transverse decay function f(rho) w.r.t rho
 double RDPImplementation::td(double C0, double C2, double C4, double delta,
     double const * const rvec, double r, const double* const n, double & rho_sq,
-    double & dtd)
+    double & dtd) const
 {
 
   double n_dot_r = dot(n, rvec);
@@ -1255,17 +1309,17 @@ double RDPImplementation::td(double C0, double C2, double C4, double delta,
 
 // derivartive of dihedral angle func gij w.r.t rho, and atom positions
 double RDPImplementation::dihedral(const int i, const int j,
-    int const * const particleSpecies,
+    int const * const particleSpeciesCodes,
     VectorOfSizeDIM const * const coordinates,
-    VectorOfSize3Int const * const nearest3neigh,
+    VectorOfSizeThreeInt const * const nearest3neigh,
     double const rhosq,
     double & d_drhosq, double d_dri[DIM], double d_drj[DIM],
     double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
-    double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM])
+    double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM]) const
 {
   // get parameter
-  int ispec = particleSpecies[i];
-  int jspec = particleSpecies[j];
+  int ispec = particleSpeciesCodes[i];
+  int jspec = particleSpeciesCodes[j];
   double B = B_2D_[ispec][jspec];
   double eta = eta_2D_[ispec][jspec];
   double cut_rhosq = rhocutSq_2D_[ispec][jspec];
@@ -1375,7 +1429,7 @@ double RDPImplementation::dihedral(const int i, const int j,
 double RDPImplementation::deriv_cos_omega(double const * const rk,
     double const * const ri, double const * const rj, double const * const rl,
     double * const dcos_drk, double * const dcos_dri, double * const dcos_drj,
-    double * const dcos_drl)
+    double * const dcos_drl) const
 {
 
   double ejik[DIM];
@@ -1440,7 +1494,7 @@ double RDPImplementation::deriv_cos_omega(double const * const rk,
 
 
 // tap cutoff function
-double RDPImplementation::tap(double r, double cutoff, double & dtap)
+double RDPImplementation::tap(double r, double cutoff, double & dtap) const
 {
   double t;
   double r_min = 0;
@@ -1459,7 +1513,7 @@ double RDPImplementation::tap(double r, double cutoff, double & dtap)
 }
 
 // tap rho
-double RDPImplementation::tap_rho(double rhosq, double cut_rhosq, double & drhosq)
+double RDPImplementation::tap_rho(double rhosq, double cut_rhosq, double & drhosq) const
 {
   double roc_sq;
   double roc;
@@ -1478,14 +1532,14 @@ double RDPImplementation::tap_rho(double rhosq, double cut_rhosq, double & drhos
 // helper functions
 
 // dot product of two vector
-double RDPImplementation::dot(double const * const x, double const * const y)
+double RDPImplementation::dot(double const * const x, double const * const y) const
 {
   return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
 }
 
 // matrix  product a vector, return a vector
 void RDPImplementation::mat_dot_vec(VectorOfSizeDIM const * const X,
-    double const * const y, double * const z)
+    double const * const y, double * const z) const
 {
   int k;
   for (k=0; k<DIM; k++) {
@@ -1499,7 +1553,7 @@ void RDPImplementation::mat_dot_vec(VectorOfSizeDIM const * const X,
 //  actual one.
 void RDPImplementation::deriv_cross(double const * const rk, double const * const rl,
     double const * const rm, double * const cross, VectorOfSizeDIM * const dcross_drk,
-    VectorOfSizeDIM * const dcross_drl, VectorOfSizeDIM * const dcross_drm)
+    VectorOfSizeDIM * const dcross_drl, VectorOfSizeDIM * const dcross_drm) const
 {
 
   double x[DIM];
