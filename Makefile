@@ -35,21 +35,21 @@ include $(shell $(KIM_API_BUILD_CONFIG) --master-config)
 
 
 # set model driver specific details
-MODEL_DRIVER_NAME := RDP_modified_Kolmogorov_Crespi__MD_000000111111_000
+MODEL_DRIVER_NAME := DRIP_WenTadmor__MD_000000111111_000
 MODEL_DRIVER_CREATE_FUNCTION_NAME := model_driver_create
 MODEL_DRIVER_CREATE_FUNCTION_LANG := cpp
 
-LOCALOBJ = RDP.o RDPImplementation.o helper.o
+LOCALOBJ = DRIP.o DRIPImplementation.o helper.o
 
-RDP.o: RDP.hpp RDPImplementation.hpp
-RDPImplementation.o: RDPImplementation.hpp helper.hpp  \
-                                 RDPImplementationComputeDispatch.cpp
+DRIP.o: DRIP.hpp DRIPImplementation.hpp
+DRIPImplementation.o: DRIPImplementation.hpp helper.hpp  \
+                                 DRIPImplementationComputeDispatch.cpp
 helper.o: helper.hpp
-RDPImplementationComputeDispatch.cpp: CreateDispatch.sh
+DRIPImplementationComputeDispatch.cpp: CreateDispatch.sh
 	@./CreateDispatch.sh
 	@printf "Creating... $@.\n"
 
-LOCALCLEAN =  RDPImplementationComputeDispatch.cpp
+LOCALCLEAN =  DRIPImplementationComputeDispatch.cpp
 
 # APPEND to compiler option flag lists
 #FFLAGS   +=

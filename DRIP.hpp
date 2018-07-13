@@ -26,8 +26,8 @@
 //    Mingjian Wen
 
 
-#ifndef RDP_HPP_
-#define RDP_HPP_
+#ifndef DRIP_HPP_
+#define DRIP_HPP_
 
 
 #include "KIM_UnitSystem.hpp"
@@ -50,12 +50,12 @@ int model_driver_create(
     KIM::TimeUnit const requestedTimeUnit);
 }
 
-class RDPImplementation;
+class DRIPImplementation;
 
-class RDP
+class DRIP
 {
  public:
-  RDP(
+  DRIP(
       KIM::ModelDriverCreate* const modelDriverCreate,
       KIM::LengthUnit const requestedLengthUnit,
       KIM::EnergyUnit const requestedEnergyUnit,
@@ -63,7 +63,7 @@ class RDP
       KIM::TemperatureUnit const requestedTemperatureUnit,
       KIM::TimeUnit const requestedTimeUnit,
       int* const ier);
-  ~RDP();
+  ~DRIP();
 
   // no need to make these "extern" since KIM will only access them
   // via function pointers.  "static" is required so that there is not
@@ -81,7 +81,8 @@ class RDP
       KIM::ModelComputeArgumentsDestroy * const modelComputeArgumentsDestroy);
 
  private:
-  RDPImplementation* implementation_;
+  DRIPImplementation* implementation_;
 };
 
-#endif  // RDP_HPP_
+#endif  // DRIP_HPP_
+

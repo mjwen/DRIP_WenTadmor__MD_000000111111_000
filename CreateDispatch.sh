@@ -31,7 +31,7 @@
 #    Mingjian Wen
 
 
-flName=RDPImplementationComputeDispatch.cpp
+flName=DRIPImplementationComputeDispatch.cpp
 
 printf "   switch(GetComputeIndex(isComputeProcess_dEdr,\n"    >  $flName
 printf "                          isComputeProcess_d2Edr2,\n"  >> $flName

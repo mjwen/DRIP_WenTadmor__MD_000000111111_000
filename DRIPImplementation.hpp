@@ -26,12 +26,12 @@
 //    Mingjian Wen
 
 
-#ifndef RDP_IMPLEMENTATION_HPP_
-#define RDP_IMPLEMENTATION_HPP_
+#ifndef DRIP_IMPLEMENTATION_HPP_
+#define DRIP_IMPLEMENTATION_HPP_
 
 #include <vector>
 #include "KIM_LogVerbosity.hpp"
-#include "RDP.hpp"
+#include "DRIP.hpp"
 #include "helper.hpp"
 
 #define DIM 3
@@ -53,15 +53,15 @@ typedef int   VectorOfSizeThreeInt[DIM];
 
 //==============================================================================
 //
-// Declaration of RDPImplementation class
+// Declaration of DRIPImplementation class
 //
 //==============================================================================
 
 //******************************************************************************
-class RDPImplementation
+class DRIPImplementation
 {
 public:
-  RDPImplementation(
+  DRIPImplementation(
       KIM::ModelDriverCreate* const modelDriverCreate,
       KIM::LengthUnit const requestedLengthUnit,
       KIM::EnergyUnit const requestedEnergyUnit,
@@ -69,7 +69,7 @@ public:
       KIM::TemperatureUnit const requestedTemperatureUnit,
       KIM::TimeUnit const requestedTimeUnit,
       int* const ier);
-  ~RDPImplementation();  // no explicit Destroy() needed here
+  ~DRIPImplementation();  // no explicit Destroy() needed here
 
   int Refresh(KIM::ModelRefresh* const modelRefresh);
   int Compute(KIM::ModelCompute const* const modelCompute,
@@ -85,7 +85,7 @@ private:
   //   Set in constructor (via SetConstantValues)
   //
   //
-  // RDPImplementation: constants
+  // DRIPImplementation: constants
   int numberModelSpecies_;
   std::vector<int> modelSpeciesCodeList_;
   int numberUniqueSpeciesPairs_;
@@ -126,7 +126,7 @@ private:
   // KIM API: Model Parameters (can be changed directly by KIM Simulator)
   // none
   //
-  // RDPImplementation: values (changed only by Refresh())
+  // DRIPImplementation: values (changed only by Refresh())
   double influenceDistance_;
   int paddingNeighborHints_;
   int halfListHints_;
@@ -149,7 +149,7 @@ private:
   //   Memory may be reallocated on each call
   //
   //
-  // RDPImplementation: values that change
+  // DRIPImplementation: values that change
   int cachedNumberOfParticles_;
 
 
@@ -241,7 +241,7 @@ private:
       VectorOfSizeSix* const particleVirial) const;
 
 
-  // RDP functions
+  // DRIP functions
   int create_layers(
       KIM::ModelCompute const* const modelCompute,
       KIM::ModelComputeArguments const* const modelComputeArguments,
@@ -356,7 +356,7 @@ private:
 
 //==============================================================================
 //
-// Definition of RDPImplementation::Compute functions
+// Definition of DRIPImplementation::Compute functions
 //
 // NOTE: Here we rely on the compiler optimizations to prune dead code
 //       after the template expansions.  This provides high efficiency
@@ -369,7 +369,7 @@ template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
     bool isComputeEnergy, bool isComputeForces,
     bool isComputeParticleEnergy, bool isComputeVirial,
     bool isComputeParticleVirial>
-int RDPImplementation::Compute(
+int DRIPImplementation::Compute(
     KIM::ModelCompute const* const modelCompute,
     KIM::ModelComputeArguments const* const modelComputeArguments,
     const int* const particleSpeciesCodes,
@@ -539,4 +539,5 @@ int RDPImplementation::Compute(
 }
 
 
-#endif  // RDP_IMPLEMENTATION_HPP_
+#endif  // DRIP_IMPLEMENTATION_HPP_
+

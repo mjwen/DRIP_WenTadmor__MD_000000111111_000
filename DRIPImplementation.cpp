@@ -34,7 +34,7 @@
 #include <iostream>
 #include <map>
 
-#include "RDPImplementation.hpp"
+#include "DRIPImplementation.hpp"
 #include "KIM_ModelDriverHeaders.hpp"
 
 #define MAXLINE 1024
@@ -42,13 +42,13 @@
 
 //==============================================================================
 //
-// Implementation of RDPImplementation public member functions
+// Implementation of DRIPImplementation public member functions
 //
 //==============================================================================
 
 //******************************************************************************
 #include "KIM_ModelDriverCreateLogMacros.hpp"
-RDPImplementation::RDPImplementation(
+DRIPImplementation::DRIPImplementation(
     KIM::ModelDriverCreate* const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
     KIM::EnergyUnit const requestedEnergyUnit,
@@ -141,7 +141,7 @@ RDPImplementation::RDPImplementation(
 
 
 //******************************************************************************
-RDPImplementation::~RDPImplementation()
+DRIPImplementation::~DRIPImplementation()
 { // note: it is ok to delete a null pointer and we have ensured that
   // everything is initialized to null
 
@@ -174,7 +174,7 @@ RDPImplementation::~RDPImplementation()
 
 
 //******************************************************************************
-int RDPImplementation::Refresh(KIM::ModelRefresh* const modelRefresh)
+int DRIPImplementation::Refresh(KIM::ModelRefresh* const modelRefresh)
 {
   int ier;
 
@@ -191,7 +191,7 @@ int RDPImplementation::Refresh(KIM::ModelRefresh* const modelRefresh)
 
 
 //******************************************************************************
-int RDPImplementation::Compute(
+int DRIPImplementation::Compute(
     KIM::ModelCompute const* const modelCompute,
     KIM::ModelComputeArguments const* const modelComputeArguments)
 {
@@ -236,13 +236,13 @@ int RDPImplementation::Compute(
   // if (ier) return ier;
 
 
-#include "RDPImplementationComputeDispatch.cpp"
+#include "DRIPImplementationComputeDispatch.cpp"
   return ier;
 }
 
 
 //******************************************************************************
-int RDPImplementation::ComputeArgumentsCreate(
+int DRIPImplementation::ComputeArgumentsCreate(
     KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate) const
 {
   int ier;
@@ -261,7 +261,7 @@ int RDPImplementation::ComputeArgumentsCreate(
 
 
 //******************************************************************************
-int RDPImplementation::ComputeArgumentsDestroy(
+int DRIPImplementation::ComputeArgumentsDestroy(
     KIM::ModelComputeArgumentsDestroy* const modelComputeArgumentsDestroy)
 const
 {
@@ -277,19 +277,19 @@ const
 
 //==============================================================================
 //
-// Implementation of RDPImplementation private member functions
+// Implementation of DRIPImplementation private member functions
 //
 //==============================================================================
 
 ///******************************************************************************
-void RDPImplementation::AllocatePrivateParameterMemory()
+void DRIPImplementation::AllocatePrivateParameterMemory()
 {
   // nothing to do for this case
 }
 
 
 //******************************************************************************
-void RDPImplementation::AllocateParameterMemory()
+void DRIPImplementation::AllocateParameterMemory()
 { // allocate memory for data
   AllocateAndInitialize1DArray<double> (cutoff_, numberUniqueSpeciesPairs_);
   AllocateAndInitialize1DArray<double> (rhocut_, numberUniqueSpeciesPairs_);
@@ -321,7 +321,7 @@ void RDPImplementation::AllocateParameterMemory()
 
 //******************************************************************************
 #include "KIM_ModelDriverCreateLogMacros.hpp"
-int RDPImplementation::OpenParameterFiles(
+int DRIPImplementation::OpenParameterFiles(
     KIM::ModelDriverCreate* const modelDriverCreate,
     int const numberParameterFiles,
     FILE* parameterFilePointers[MAX_PARAMETER_FILES])
@@ -330,7 +330,7 @@ int RDPImplementation::OpenParameterFiles(
 
   if (numberParameterFiles > MAX_PARAMETER_FILES) {
     ier = true;
-    LOG_ERROR("RDP given too many parameter files");
+    LOG_ERROR("DRIP given too many parameter files");
     return ier;
   }
 
@@ -346,7 +346,7 @@ int RDPImplementation::OpenParameterFiles(
     if (parameterFilePointers[i] == 0) {
       char message[MAXLINE];
       sprintf(message,
-          "RDP parameter file number %d cannot be opened",
+          "DRIP parameter file number %d cannot be opened",
           i);
       ier = true;
       LOG_ERROR(message);
@@ -365,7 +365,7 @@ int RDPImplementation::OpenParameterFiles(
 
 //******************************************************************************
 #include "KIM_ModelDriverCreateLogMacros.hpp"
-int RDPImplementation::ProcessParameterFiles(
+int DRIPImplementation::ProcessParameterFiles(
     KIM::ModelDriverCreate* const modelDriverCreate,
     int const numberParameterFiles,
     FILE* const parameterFilePointers[MAX_PARAMETER_FILES])
@@ -490,7 +490,7 @@ int RDPImplementation::ProcessParameterFiles(
 
 
 //******************************************************************************
-void RDPImplementation::getNextDataLine(
+void DRIPImplementation::getNextDataLine(
     FILE* const filePtr, char* nextLinePtr, int const maxSize,
     int* endOfFileFlag)
 {
@@ -511,7 +511,7 @@ void RDPImplementation::getNextDataLine(
 
 
 //******************************************************************************
-void RDPImplementation::CloseParameterFiles(
+void DRIPImplementation::CloseParameterFiles(
     int const numberParameterFiles,
     FILE* const parameterFilePointers[MAX_PARAMETER_FILES])
 {
@@ -523,7 +523,7 @@ void RDPImplementation::CloseParameterFiles(
 
 //******************************************************************************
 #include "KIM_ModelDriverCreateLogMacros.hpp"
-int RDPImplementation::ConvertUnits(
+int DRIPImplementation::ConvertUnits(
     KIM::ModelDriverCreate* const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
     KIM::EnergyUnit const requestedEnergyUnit,
@@ -608,7 +608,7 @@ int RDPImplementation::ConvertUnits(
 
 
 //******************************************************************************
-int RDPImplementation::RegisterKIMModelSettings(
+int DRIPImplementation::RegisterKIMModelSettings(
     KIM::ModelDriverCreate* const modelDriverCreate) const
 {
   // register numbering
@@ -620,7 +620,7 @@ int RDPImplementation::RegisterKIMModelSettings(
 
 //******************************************************************************
 #include "KIM_ModelComputeArgumentsCreateLogMacros.hpp"
-int RDPImplementation::RegisterKIMComputeArgumentsSettings(
+int DRIPImplementation::RegisterKIMComputeArgumentsSettings(
     KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate) const
 {
   // register arguments
@@ -661,7 +661,7 @@ int RDPImplementation::RegisterKIMComputeArgumentsSettings(
 
 //******************************************************************************
 #include "KIM_ModelDriverCreateLogMacros.hpp"
-int RDPImplementation::RegisterKIMParameters(
+int DRIPImplementation::RegisterKIMParameters(
     KIM::ModelDriverCreate* const modelDriverCreate)
 {
   int ier = false;
@@ -704,7 +704,7 @@ int RDPImplementation::RegisterKIMParameters(
 
 
 //******************************************************************************
-int RDPImplementation::RegisterKIMFunctions(
+int DRIPImplementation::RegisterKIMFunctions(
     KIM::ModelDriverCreate* const modelDriverCreate)
 const
 {
@@ -714,19 +714,19 @@ const
   error =
     modelDriverCreate->SetDestroyPointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(RDP::Destroy)) ||
+        (KIM::func*)&(DRIP::Destroy)) ||
     modelDriverCreate->SetRefreshPointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(RDP::Refresh)) ||
+        (KIM::func*)&(DRIP::Refresh)) ||
     modelDriverCreate->SetComputePointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(RDP::Compute)) ||
+        (KIM::func*)&(DRIP::Compute)) ||
     modelDriverCreate->SetComputeArgumentsCreatePointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(RDP::ComputeArgumentsCreate)) ||
+        (KIM::func*)&(DRIP::ComputeArgumentsCreate)) ||
     modelDriverCreate->SetComputeArgumentsDestroyPointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(RDP::ComputeArgumentsDestroy));
+        (KIM::func*)&(DRIP::ComputeArgumentsDestroy));
 
 
   return error;
@@ -735,7 +735,7 @@ const
 
 //******************************************************************************
 template<class ModelObj>
-int RDPImplementation::SetRefreshMutableValues(
+int DRIPImplementation::SetRefreshMutableValues(
     ModelObj* const modelObj)
 { // use (possibly) new values of parameters to compute other quantities
   // NOTE: This function is templated because it's called with both a
@@ -791,7 +791,7 @@ int RDPImplementation::SetRefreshMutableValues(
 
 //******************************************************************************
 #include "KIM_ModelComputeArgumentsLogMacros.hpp"
-int RDPImplementation::SetComputeMutableValues(
+int DRIPImplementation::SetComputeMutableValues(
     KIM::ModelComputeArguments const* const modelComputeArguments,
     bool& isComputeProcess_dEdr,
     bool& isComputeProcess_d2Edr2,
@@ -871,7 +871,7 @@ int RDPImplementation::SetComputeMutableValues(
 //******************************************************************************
 // Assume that the particle species interge code starts from 0
 #include "KIM_ModelComputeLogMacros.hpp"
-int RDPImplementation::CheckParticleSpeciesCodes(
+int DRIPImplementation::CheckParticleSpeciesCodes(
     KIM::ModelCompute const* const modelCompute,
     int const* const particleSpeciesCodes) const
 {
@@ -893,7 +893,7 @@ int RDPImplementation::CheckParticleSpeciesCodes(
 
 
 //******************************************************************************
-int RDPImplementation::GetComputeIndex(
+int DRIPImplementation::GetComputeIndex(
     const bool& isComputeProcess_dEdr,
     const bool& isComputeProcess_d2Edr2,
     const bool& isComputeEnergy,
@@ -947,12 +947,12 @@ int RDPImplementation::GetComputeIndex(
 
 //==============================================================================
 //
-// RDP functions
+// DRIP functions
 //
 //==============================================================================
 
 // create layers and find the nearest 3 neighbors of each atom
-int RDPImplementation::create_layers(
+int DRIPImplementation::create_layers(
     KIM::ModelCompute const* const modelCompute,
     KIM::ModelComputeArguments const* const modelComputeArguments,
     VectorOfSizeDIM const* const coordinates,
@@ -1134,7 +1134,7 @@ template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
     bool isComputeEnergy, bool isComputeForces,
     bool isComputeParticleEnergy, bool isComputeVirial,
     bool isComputeParticleVirial>
-double RDPImplementation::calc_attractive(
+double DRIPImplementation::calc_attractive(
     int const i, int const j,
     int const iSpecies, int const jSpecies,
     double const* const rij, double const r,
@@ -1172,7 +1172,7 @@ template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
     bool isComputeEnergy, bool isComputeForces,
     bool isComputeParticleEnergy, bool isComputeVirial,
     bool isComputeParticleVirial>
-double RDPImplementation::calc_repulsive(
+double DRIPImplementation::calc_repulsive(
     int const i, int const j,
     int const* const particleSpeciesCodes,
     VectorOfSizeDIM const* const coordinates,
@@ -1283,7 +1283,7 @@ double RDPImplementation::calc_repulsive(
 
 
 // compute normal and its derivatives w.r.t atom ri, and its 3 nearest neighs k1, k2, k3
-void RDPImplementation::normal(
+void DRIPImplementation::normal(
     const int i,
     VectorOfSizeDIM const* const coordinates,
     VectorOfSizeThreeInt const* const nearest3neigh,
@@ -1311,7 +1311,7 @@ void RDPImplementation::normal(
 }
 
 
-void RDPImplementation::get_drhosqij(
+void DRIPImplementation::get_drhosqij(
     double const* const rij,
     double const* const ni,
     VectorOfSizeDIM const* const dni_dri,
@@ -1348,7 +1348,7 @@ void RDPImplementation::get_drhosqij(
 
 
 // derivartive of transverse decay function f(rho) w.r.t rho
-double RDPImplementation::td(
+double DRIPImplementation::td(
     double C0, double C2, double C4, double delta,
     double const* const rvec, double r,
     const double* const n,
@@ -1372,7 +1372,7 @@ double RDPImplementation::td(
 
 
 // derivartive of dihedral angle func gij w.r.t rho, and atom positions
-double RDPImplementation::dihedral(
+double DRIPImplementation::dihedral(
     const int i, const int j,
     int const* const particleSpeciesCodes,
     VectorOfSizeDIM const* const coordinates,
@@ -1492,7 +1492,7 @@ double RDPImplementation::dihedral(
 
 
 // compute cos(omega_kijl) and the derivateives
-double RDPImplementation::deriv_cos_omega(
+double DRIPImplementation::deriv_cos_omega(
     double const* const rk,
     double const* const ri,
     double const* const rj,
@@ -1564,7 +1564,7 @@ double RDPImplementation::deriv_cos_omega(
 
 
 // tap cutoff function
-double RDPImplementation::tap(double r, double cutoff, double& dtap) const
+double DRIPImplementation::tap(double r, double cutoff, double& dtap) const
 {
   double t;
   double r_min = 0;
@@ -1586,7 +1586,7 @@ double RDPImplementation::tap(double r, double cutoff, double& dtap) const
 
 
 // tap rho
-double RDPImplementation::tap_rho(double rhosq, double cut_rhosq, double& drhosq) const
+double DRIPImplementation::tap_rho(double rhosq, double cut_rhosq, double& drhosq) const
 {
   double roc_sq;
   double roc;
@@ -1606,14 +1606,14 @@ double RDPImplementation::tap_rho(double rhosq, double cut_rhosq, double& drhosq
 // helper functions
 
 // dot product of two vector
-double RDPImplementation::dot(double const* const x, double const* const y) const
+double DRIPImplementation::dot(double const* const x, double const* const y) const
 {
   return x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
 }
 
 
 // matrix  product a vector, return a vector
-void RDPImplementation::mat_dot_vec(
+void DRIPImplementation::mat_dot_vec(
     VectorOfSizeDIM const* const X,
     double const* const y,
     double* const z) const
@@ -1630,7 +1630,7 @@ void RDPImplementation::mat_dot_vec(
 //   w.r.t rk, rl, rm.
 //  NOTE, the dcross_drk, dcross_drl, and dcross_drm is actually the transpose of the
 //  actual one.
-void RDPImplementation::deriv_cross(
+void DRIPImplementation::deriv_cross(
     double const* const rk,
     double const* const rl,
     double const* const rm,
@@ -1715,3 +1715,4 @@ void RDPImplementation::deriv_cross(
     }
   }
 }
+

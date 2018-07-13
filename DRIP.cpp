@@ -32,8 +32,8 @@
 #include <fstream>
 #include <iostream>
 
-#include "RDP.hpp"
-#include "RDPImplementation.hpp"
+#include "DRIP.hpp"
+#include "DRIPImplementation.hpp"
 
 
 //==============================================================================
@@ -57,8 +57,8 @@ int model_driver_create(
 
   // read input files, convert units if needed, compute
   // interpolation coefficients, set cutoff, and publish parameters
-  RDP* const modelObject
-      = new RDP(modelDriverCreate,
+  DRIP* const modelObject
+      = new DRIP(modelDriverCreate,
                             requestedLengthUnit,
                             requestedEnergyUnit,
                             requestedChargeUnit,
@@ -72,7 +72,7 @@ int model_driver_create(
     return ier;
   }
 
-  // register pointer to RDP object in KIM object
+  // register pointer to DRIP object in KIM object
   modelDriverCreate->SetModelBufferPointer(
       static_cast<void*>(modelObject));
 
@@ -84,12 +84,12 @@ int model_driver_create(
 
 //==============================================================================
 //
-// Implementation of RDP public wrapper functions
+// Implementation of DRIP public wrapper functions
 //
 //==============================================================================
 
 //******************************************************************************
-RDP::RDP(
+DRIP::DRIP(
     KIM::ModelDriverCreate * const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
     KIM::EnergyUnit const requestedEnergyUnit,
@@ -98,7 +98,7 @@ RDP::RDP(
     KIM::TimeUnit const requestedTimeUnit,
     int* const ier)
 {
-  implementation_ = new RDPImplementation(
+  implementation_ = new DRIPImplementation(
       modelDriverCreate,
       requestedLengthUnit,
       requestedEnergyUnit,
@@ -109,16 +109,16 @@ RDP::RDP(
 }
 
 //******************************************************************************
-RDP::~RDP()
+DRIP::~DRIP()
 {
   delete implementation_;
 }
 
 //******************************************************************************
 // static member function
-int RDP::Destroy(KIM::ModelDestroy * const modelDestroy)
+int DRIP::Destroy(KIM::ModelDestroy * const modelDestroy)
 {
-  RDP * modelObject;
+  DRIP * modelObject;
   modelDestroy->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
 
   if (modelObject != NULL)
@@ -133,10 +133,10 @@ int RDP::Destroy(KIM::ModelDestroy * const modelDestroy)
 
 //******************************************************************************
 // static member function
-int RDP::Refresh(
+int DRIP::Refresh(
     KIM::ModelRefresh * const modelRefresh)
 {
-  RDP * modelObject;
+  DRIP * modelObject;
   modelRefresh->GetModelBufferPointer(
       reinterpret_cast<void**>(&modelObject));
 
@@ -145,11 +145,11 @@ int RDP::Refresh(
 
 //******************************************************************************
 // static member function
-int RDP::Compute(
+int DRIP::Compute(
     KIM::ModelCompute const * const modelCompute,
     KIM::ModelComputeArguments const * const modelComputeArguments)
 {
-  RDP * modelObject;
+  DRIP * modelObject;
   modelCompute->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
 
   return modelObject->implementation_->Compute(modelCompute, modelComputeArguments);
@@ -158,11 +158,11 @@ int RDP::Compute(
 
 //******************************************************************************
 // static member function
-int RDP::ComputeArgumentsCreate(
+int DRIP::ComputeArgumentsCreate(
     KIM::ModelCompute const * const modelCompute,
     KIM::ModelComputeArgumentsCreate * const modelComputeArgumentsCreate)
 {
-  RDP * modelObject;
+  DRIP * modelObject;
   modelCompute->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
 
   return modelObject->implementation_
@@ -171,14 +171,15 @@ int RDP::ComputeArgumentsCreate(
 
 //******************************************************************************
 // static member function
-int RDP::ComputeArgumentsDestroy(
+int DRIP::ComputeArgumentsDestroy(
     KIM::ModelCompute const * const modelCompute,
     KIM::ModelComputeArgumentsDestroy * const modelComputeArgumentsDestroy)
 {
-  RDP * modelObject;
+  DRIP * modelObject;
   modelCompute->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
 
   return modelObject->implementation_
       ->ComputeArgumentsDestroy(modelComputeArgumentsDestroy);
 }
+
 
