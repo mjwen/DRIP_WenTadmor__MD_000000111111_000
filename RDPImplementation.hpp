@@ -48,8 +48,7 @@
 //==============================================================================
 
 // type declaration for vector of constant dimension
-typedef double VectorOfSizeDIM[DIM];
-typedef int VectorOfSizeThreeInt[DIM];
+typedef int   VectorOfSizeThreeInt[DIM];
 
 
 //==============================================================================
@@ -61,7 +60,7 @@ typedef int VectorOfSizeThreeInt[DIM];
 //******************************************************************************
 class RDPImplementation
 {
- public:
+public:
   RDPImplementation(
       KIM::ModelDriverCreate* const modelDriverCreate,
       KIM::LengthUnit const requestedLengthUnit,
@@ -69,19 +68,19 @@ class RDPImplementation
       KIM::ChargeUnit const requestedChargeUnit,
       KIM::TemperatureUnit const requestedTemperatureUnit,
       KIM::TimeUnit const requestedTimeUnit,
-      int * const ier);
+      int* const ier);
   ~RDPImplementation();  // no explicit Destroy() needed here
 
-  int Refresh(KIM::ModelRefresh * const modelRefresh);
-  int Compute(KIM::ModelCompute const * const modelCompute,
-      KIM::ModelComputeArguments const * const modelComputeArguments);
+  int Refresh(KIM::ModelRefresh* const modelRefresh);
+  int Compute(KIM::ModelCompute const* const modelCompute,
+      KIM::ModelComputeArguments const* const modelComputeArguments);
   int ComputeArgumentsCreate(
-      KIM::ModelComputeArgumentsCreate * const modelComputeArgumentsCreate) const;
+      KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate) const;
   int ComputeArgumentsDestroy(
-      KIM::ModelComputeArgumentsDestroy * const modelComputeArgumentsDestroy) const;
+      KIM::ModelComputeArgumentsDestroy* const modelComputeArgumentsDestroy) const;
 
 
- private:
+private:
   // Constant values that never change
   //   Set in constructor (via SetConstantValues)
   //
@@ -152,11 +151,6 @@ class RDPImplementation
   //
   // RDPImplementation: values that change
   int cachedNumberOfParticles_;
-  int cachedIsComputeEnergy_;
-  int cachedIsComputeParticleEnergy_;
-  int cachedIsComputeForces_;
-  int cachedIsComputeProcess_dEdr_;
-  int cachedIsComputeProcess_d2Edr2_;
 
 
   // Helper methods
@@ -169,34 +163,35 @@ class RDPImplementation
   static int OpenParameterFiles(
       KIM::ModelDriverCreate * const modelDriverCreate,
       int const numberParameterFiles,
-      FILE* parameterFilePointers[MAX_PARAMETER_FILES]);
+      FILE * parameterFilePointers[MAX_PARAMETER_FILES]);
   int ProcessParameterFiles(
-      KIM::ModelDriverCreate * const modelDriverCreate,
+      KIM::ModelDriverCreate* const modelDriverCreate,
       int const numberParameterFiles,
       FILE* const parameterFilePointers[MAX_PARAMETER_FILES]);
   void getNextDataLine(
-  FILE* const filePtr, char* const nextLine,
-                       int const maxSize, int* endOfFileFlag);
+      FILE* const filePtr, char* const nextLine,
+      int const maxSize, int* endOfFileFlag);
   static void CloseParameterFiles(
       int const numberParameterFiles,
       FILE* const parameterFilePointers[MAX_PARAMETER_FILES]);
   int ConvertUnits(
-      KIM::ModelDriverCreate * const modelDriverCreate,
+      KIM::ModelDriverCreate* const modelDriverCreate,
       KIM::LengthUnit const requestedLengthUnit,
       KIM::EnergyUnit const requestedEnergyUnit,
       KIM::ChargeUnit const requestedChargeUnit,
       KIM::TemperatureUnit const requestedTemperatureUnit,
       KIM::TimeUnit const requestedTimeUnit);
   int RegisterKIMModelSettings(
-  KIM::ModelDriverCreate * const modelDriverCreate) const;
+      KIM::ModelDriverCreate* const modelDriverCreate) const;
   int RegisterKIMComputeArgumentsSettings(
-      KIM::ModelComputeArgumentsCreate * const modelComputeArgumentsCreate) const;
-  int RegisterKIMParameters(KIM::ModelDriverCreate * const modelDriverCreate);
-  int RegisterKIMFunctions(KIM::ModelDriverCreate * const modelDriverCreate) const;
+      KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate) const;
+  int RegisterKIMParameters(KIM::ModelDriverCreate* const modelDriverCreate);
+  int RegisterKIMFunctions(KIM::ModelDriverCreate* const modelDriverCreate) const;
+
   //
   // Related to Refresh()
   template<class ModelObj>
-  int SetRefreshMutableValues(ModelObj * const modelObj);
+  int SetRefreshMutableValues(ModelObj* const modelObj);
 
   //
   // Related to Compute()
@@ -218,8 +213,8 @@ class RDPImplementation
       VectorOfSizeSix*& virial,
       VectorOfSizeSix*& particleViral);
   int CheckParticleSpeciesCodes(
-  KIM::ModelCompute const * const modelCompute,
-                           int const* const particleSpeciesCodes) const;
+      KIM::ModelCompute const* const modelCompute,
+      int const* const particleSpeciesCodes) const;
   int GetComputeIndex(
       const bool& isComputeProcess_dEdr,
       const bool& isComputeProcess_d2Edr2,
@@ -230,92 +225,129 @@ class RDPImplementation
       const bool& isComputeParticleVirial) const;
 
   // compute functions
-  template< bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
-            bool isComputeEnergy, bool isComputeForces,
+  template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
+      bool isComputeEnergy, bool isComputeForces,
       bool isComputeParticleEnergy, bool isComputeVirial,
       bool isComputeParticleVirial>
   int Compute(
-  KIM::ModelCompute const * const modelCompute,
-              KIM::ModelComputeArguments const * const modelComputeArguments,
-              const int* const particleSpeciesCodes,
-              const int* const particleContributing,
-              const VectorOfSizeDIM* const coordinates,
-              double* const energy,
-              VectorOfSizeDIM* const forces,
+      KIM::ModelCompute const* const modelCompute,
+      KIM::ModelComputeArguments const* const modelComputeArguments,
+      const int* const particleSpeciesCodes,
+      const int* const particleContributing,
+      const VectorOfSizeDIM* const coordinates,
+      double* const energy,
+      VectorOfSizeDIM* const forces,
       double* const particleEnergy,
       VectorOfSizeSix virial,
-      VectorOfSizeSix* const particleVirial);
+      VectorOfSizeSix* const particleVirial) const;
 
 
   // RDP functions
- int create_layers(KIM::ModelCompute const * const modelCompute,
-    KIM::ModelComputeArguments const * const modelComputeArguments,
-    VectorOfSizeDIM const * const coordinates,
-    int * const in_layer,
-    VectorOfSizeThreeInt * const nearest3neigh) const;
+  int create_layers(
+      KIM::ModelCompute const* const modelCompute,
+      KIM::ModelComputeArguments const* const modelComputeArguments,
+      VectorOfSizeDIM const* const coordinates,
+      int* const in_layer,
+      VectorOfSizeThreeInt* const nearest3neigh) const;
 
-  double calc_attractive(int const i, int const j,
-     int const iSpecies, int const jSpecies, double const * const rij,
-     double const r, VectorOfSizeDIM * const forces) const;
+  template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
+      bool isComputeEnergy, bool isComputeForces,
+      bool isComputeParticleEnergy, bool isComputeVirial,
+      bool isComputeParticleVirial>
+  double calc_attractive(
+      int const i, int const j,
+      int const iSpecies, int const jSpecies,
+      double const* const rij, double const r,
+      VectorOfSizeDIM* const forces,
+      VectorOfSizeSix virial,
+      VectorOfSizeSix* const particleVirial) const;
 
-  double calc_repulsive(int const i, int const j,
-      int const * const particleSpeciesCodes,
-      VectorOfSizeDIM const * const coordinates,
-      VectorOfSizeThreeInt const * const nearest3neigh,
-      const double * const rij,
-      double const r, const int nbj1, const int nbj2, const int nbj3,
-      double const * const ni,  VectorOfSizeDIM const * const dni_dri,
-      VectorOfSizeDIM const * const dni_drnb1, VectorOfSizeDIM const * const dni_drnb2,
-      VectorOfSizeDIM const * const dni_drnb3, VectorOfSizeDIM * const forces) const;
+  template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
+      bool isComputeEnergy, bool isComputeForces,
+      bool isComputeParticleEnergy, bool isComputeVirial,
+      bool isComputeParticleVirial>
+  double calc_repulsive(
+      int const i, int const j,
+      int const* const particleSpeciesCodes,
+      VectorOfSizeDIM const* const coordinates,
+      VectorOfSizeThreeInt const* const nearest3neigh,
+      const double* const rij, double const r,
+      const int nbj1, const int nbj2, const int nbj3,
+      double const* const ni, VectorOfSizeDIM const* const dni_dri,
+      VectorOfSizeDIM const* const dni_drnb1,
+      VectorOfSizeDIM const* const dni_drnb2,
+      VectorOfSizeDIM const* const dni_drnb3,
+      VectorOfSizeDIM* const forces,
+      VectorOfSizeSix virial,
+      VectorOfSizeSix* const particleVirial) const;
 
-  void normal(const int i, VectorOfSizeDIM const * const coordinates,
-      VectorOfSizeThreeInt const * const nearest3neigh,
-      int & k1, int & k2, int & k3, double * const normal,
-      VectorOfSizeDIM * const dn_dri, VectorOfSizeDIM * const dn_drk1,
-      VectorOfSizeDIM * const dn_drk2, VectorOfSizeDIM * const dn_drk3) const;
+  void normal(
+      const int i,
+      VectorOfSizeDIM const* const coordinates,
+      VectorOfSizeThreeInt const* const nearest3neigh,
+      int& k1, int& k2, int& k3,
+      double* const normal,
+      VectorOfSizeDIM* const dn_dri,
+      VectorOfSizeDIM* const dn_drk1,
+      VectorOfSizeDIM* const dn_drk2,
+      VectorOfSizeDIM* const dn_drk3) const;
 
-  double td(double C0, double C2, double C4, double delta,
-      double const * const rvec, double r, const double* const n, double & rho_sq,
-      double & dtd) const;
+  double td(
+      double C0, double C2, double C4, double delta,
+      double const* const rvec, double r,
+      const double* const n, double& rho_sq,
+      double& dtd) const;
 
-  void get_drhosqij(double const * const rij,
-      double const * const ni,
-      VectorOfSizeDIM const * const dni_dri,
-      VectorOfSizeDIM const * const dni_drn1,
-      VectorOfSizeDIM const * const dni_drn2,
-      VectorOfSizeDIM const * const dni_drn3,
-      double * const drhosq_dri, double * const drhosq_drj,
-      double * const drhosq_drn1, double * const drhosq_drn2,
-      double * const drhosq_drn3) const;
+  void get_drhosqij(
+      double const* const rij,
+      double const* const ni,
+      VectorOfSizeDIM const* const dni_dri,
+      VectorOfSizeDIM const* const dni_drn1,
+      VectorOfSizeDIM const* const dni_drn2,
+      VectorOfSizeDIM const* const dni_drn3,
+      double* const drhosq_dri,
+      double* const drhosq_drj,
+      double* const drhosq_drn1,
+      double* const drhosq_drn2,
+      double* const drhosq_drn3) const;
 
-  double dihedral(const int i, const int j,
-      int const * const particleSpeciesCodes,
-      VectorOfSizeDIM const * const coordinates,
-      VectorOfSizeThreeInt const * const nearest3neigh,
+  double dihedral(
+      const int i, const int j,
+      int const* const particleSpeciesCodes,
+      VectorOfSizeDIM const* const coordinates,
+      VectorOfSizeThreeInt const* const nearest3neigh,
       double const rhosq,
-      double & d_drhosq, double d_dri[DIM], double d_drj[DIM],
-      double d_drk1[DIM], double d_drk2[DIM], double d_drk3[DIM],
-      double d_drl1[DIM], double d_drl2[DIM], double d_drl3[DIM]) const;
+      double& d_drhosq, double * const d_dri, double * const d_drj,
+      double * const d_drk1, double * const d_drk2, double * const d_drk3,
+      double * const d_drl1, double * const d_drl2, double * const d_drl3) const;
 
-  double deriv_cos_omega(double const * const rk,
-      double const * const ri, double const * const rj, double const * const rl,
-      double * const dcos_drk, double * const dcos_dri, double * const dcos_drj,
-      double * const dcos_drl) const;
+  double deriv_cos_omega(
+      double const* const rk,
+      double const* const ri,
+      double const* const rj,
+      double const* const rl,
+      double* const dcos_drk,
+      double* const dcos_dri,
+      double* const dcos_drj,
+      double* const dcos_drl) const;
 
-  double tap(double r, double cutoff, double & dtap) const;
+  double tap(double r, double cutoff, double& dtap) const;
 
-  double tap_rho(double const rhosq, double cut_rhosq, double & drhosq) const;
+  double tap_rho(double const rhosq, double cut_rhosq, double& drhosq) const;
 
   // helper
-  double dot(double const * const x, double const * const y) const;
+  double dot(double const* const x, double const* const y) const;
 
-  void deriv_cross(double const * const rk, double const * const rl,
-      double const * const rm, double * const cross, VectorOfSizeDIM * const dcross_drk,
-      VectorOfSizeDIM * const dcross_drl, VectorOfSizeDIM * const dcross_drm) const;
+  void deriv_cross(double const* const rk,
+      double const* const rl,
+      double const* const rm,
+      double* const cross,
+      VectorOfSizeDIM* const dcross_drk,
+      VectorOfSizeDIM* const dcross_drl,
+      VectorOfSizeDIM* const dcross_drm) const;
 
-  void mat_dot_vec(VectorOfSizeDIM const * const X, double const * const y,
-        double * const z) const;
-
+  void mat_dot_vec(VectorOfSizeDIM const* const x, double const* const y,
+      double* const z) const;
 };
 
 //==============================================================================
@@ -329,13 +361,13 @@ class RDPImplementation
 //==============================================================================
 
 #include "KIM_ModelComputeLogMacros.hpp"
-template< bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
-          bool isComputeEnergy, bool isComputeForces,
+template<bool isComputeProcess_dEdr, bool isComputeProcess_d2Edr2,
+    bool isComputeEnergy, bool isComputeForces,
     bool isComputeParticleEnergy, bool isComputeVirial,
     bool isComputeParticleVirial>
 int RDPImplementation::Compute(
-    KIM::ModelCompute const * const modelCompute,
-    KIM::ModelComputeArguments const * const modelComputeArguments,
+    KIM::ModelCompute const* const modelCompute,
+    KIM::ModelComputeArguments const* const modelComputeArguments,
     const int* const particleSpeciesCodes,
     const int* const particleContributing,
     const VectorOfSizeDIM* const coordinates,
@@ -343,7 +375,7 @@ int RDPImplementation::Compute(
     VectorOfSizeDIM* const forces,
     double* const particleEnergy,
     VectorOfSizeSix virial,
-    VectorOfSizeSix* const particleVirial)
+    VectorOfSizeSix* const particleVirial) const
 {
   int ier = false;
   const int Natoms = cachedNumberOfParticles_;
@@ -352,15 +384,9 @@ int RDPImplementation::Compute(
       (isComputeParticleEnergy == false) &&
       (isComputeForces == false) &&
       (isComputeProcess_dEdr == false) &&
-      (isComputeProcess_d2Edr2 == false))
+      (isComputeProcess_d2Edr2 == false)) {
     return ier;
-
-  // put them global
-  cachedIsComputeEnergy_ = isComputeEnergy;
-  cachedIsComputeParticleEnergy_ = isComputeParticleEnergy;
-  cachedIsComputeForces_ = isComputeForces;
-  cachedIsComputeProcess_dEdr_ = isComputeProcess_dEdr;
-  cachedIsComputeProcess_d2Edr2_ = isComputeProcess_d2Edr2;
+  }
 
   // initialize energy and forces
   if (isComputeEnergy == true) {
@@ -375,18 +401,19 @@ int RDPImplementation::Compute(
 
   if (isComputeForces == true) {
     for (int i = 0; i < Natoms; ++i) {
-      for (int j = 0; j < DIM; ++j)
+      for (int j = 0; j < DIM; ++j) {
         forces[i][j] = 0.0;
+      }
     }
   }
 
 
   // allocate atoms into layers
-  int * in_layer; // atoms in which layer , -1: not classified in any layer
-  int ** n3n; // nearest 3 neighbors of atom
-  AllocateAndInitialize1DArray<int>(in_layer, Natoms);
-  AllocateAndInitialize2DArray<int>(n3n, Natoms, 3);
-  VectorOfSizeThreeInt * const nearest3neigh = (VectorOfSizeThreeInt*) n3n[0];
+  int* in_layer; // atoms in which layer , -1: not classified in any layer
+  int** n3n;     // nearest 3 neighbors of atom
+  AllocateAndInitialize1DArray<int> (in_layer, Natoms);
+  AllocateAndInitialize2DArray<int> (n3n, Natoms, 3);
+  VectorOfSizeThreeInt* const nearest3neigh = (VectorOfSizeThreeInt*)n3n[0];
 
   ier = create_layers(modelCompute, modelComputeArguments, coordinates,
       in_layer, nearest3neigh);
@@ -401,7 +428,7 @@ int RDPImplementation::Compute(
   // Setup loop over contributing particles
   int i = 0;
   int numnei = 0;
-  int const * n1atom = 0;
+  int const* n1atom = 0;
 
   for (i = 0; i < cachedNumberOfParticles_; ++i) {
     if (particleContributing[i]) {
@@ -428,40 +455,58 @@ int RDPImplementation::Compute(
         int const j = n1atom[jj];
         int const jSpecies = particleSpeciesCodes[j];
         int const jlayer = in_layer[j];
-        if (ilayer == jlayer) continue;
+        if (ilayer == jlayer) {
+          continue;
+        }
 
         // Compute rij
         double rij[DIM];
-        for (int dim = 0; dim < DIM; ++dim)
+        for (int dim = 0; dim < DIM; ++dim) {
           rij[dim] = coordinates[j][dim] - coordinates[i][dim];
+        }
 
         // compute distance squared
-        double const rij_sq = rij[0]*rij[0] + rij[1]*rij[1] + rij[2]*rij[2];
+        double const rij_sq = rij[0] * rij[0] + rij[1] * rij[1] + rij[2] * rij[2];
         double const rij_mag = sqrt(rij_sq);
 
         if (rij_sq <= cutoffSq_2D_[iSpecies][jSpecies]) {
-
-          double phi_attr = calc_attractive(i, j, iSpecies, jSpecies, rij,
-              rij_mag, forces);
-          double phi_repul = calc_repulsive(i, j, particleSpeciesCodes, coordinates,
-              nearest3neigh, rij, rij_mag, nbi1, nbi2, nbi3, ni,
-              dni_dri, dni_drnb1, dni_drnb2, dni_drnb3, forces);
+          double phi_attr = calc_attractive<
+              isComputeProcess_dEdr, isComputeProcess_d2Edr2,
+              isComputeEnergy, isComputeForces,
+              isComputeParticleEnergy, isComputeVirial,
+              isComputeParticleVirial> (
+              i, j, iSpecies, jSpecies, rij,
+                              rij_mag,
+                              forces,
+                              virial,
+                              particleVirial
+                              );
+          double phi_repul = calc_repulsive<
+              isComputeProcess_dEdr, isComputeProcess_d2Edr2,
+              isComputeEnergy, isComputeForces,
+              isComputeParticleEnergy, isComputeVirial,
+              isComputeParticleVirial> (
+              i, j, particleSpeciesCodes, coordinates,
+                               nearest3neigh, rij, rij_mag, nbi1, nbi2, nbi3, ni,
+                               dni_dri, dni_drnb1, dni_drnb2, dni_drnb3,
+                               forces,
+                               virial,
+                               particleVirial
+                               );
 
           if (isComputeEnergy) {
             // HALF because of full neighborlist
             *energy += HALF * (phi_repul + phi_attr);
           }
           if (isComputeParticleEnergy) {
-            for (int k=0; k<Natoms; k++) {
-              particleEnergy[k] +=  HALF * (phi_repul + phi_attr);
+            for (int k = 0; k < Natoms; k++) {
+              particleEnergy[k] += HALF * (phi_repul + phi_attr);
             }
           }
-
-
-        }  // if particleContributing
-      }  // if particles i and j interact
-    }  // end of first neighbor loop
-  }  // end of loop over contributing particles
+        } // if particleContributing
+      }   // if particles i and j interact
+    }     // end of first neighbor loop
+  }       // end of loop over contributing particles
 
 
   // deallocate memory
@@ -472,5 +517,6 @@ int RDPImplementation::Compute(
   ier = false;
   return ier;
 }
+
 
 #endif  // RDP_IMPLEMENTATION_HPP_
