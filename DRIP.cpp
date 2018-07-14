@@ -24,6 +24,7 @@
 //
 // Contributors:
 //    Mingjian Wen
+//
 
 
 #include <cmath>
@@ -46,7 +47,7 @@
 extern "C"
 {
 int model_driver_create(
-    KIM::ModelDriverCreate * const modelDriverCreate,
+    KIM::ModelDriverCreate* const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
     KIM::EnergyUnit const requestedEnergyUnit,
     KIM::ChargeUnit const requestedChargeUnit,
@@ -58,15 +59,15 @@ int model_driver_create(
   // read input files, convert units if needed, compute
   // interpolation coefficients, set cutoff, and publish parameters
   DRIP* const modelObject
-      = new DRIP(modelDriverCreate,
-                            requestedLengthUnit,
-                            requestedEnergyUnit,
-                            requestedChargeUnit,
-                            requestedTemperatureUnit,
-                            requestedTimeUnit,
-                            &ier);
-  if (ier)
-  {
+    = new DRIP(modelDriverCreate,
+      requestedLengthUnit,
+      requestedEnergyUnit,
+      requestedChargeUnit,
+      requestedTemperatureUnit,
+      requestedTimeUnit,
+      &ier);
+
+  if (ier) {
     // constructor already reported the error
     delete modelObject;
     return ier;
@@ -74,7 +75,7 @@ int model_driver_create(
 
   // register pointer to DRIP object in KIM object
   modelDriverCreate->SetModelBufferPointer(
-      static_cast<void*>(modelObject));
+      static_cast<void*> (modelObject));
 
   // everything is good
   ier = false;
@@ -90,7 +91,7 @@ int model_driver_create(
 
 //******************************************************************************
 DRIP::DRIP(
-    KIM::ModelDriverCreate * const modelDriverCreate,
+    KIM::ModelDriverCreate* const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
     KIM::EnergyUnit const requestedEnergyUnit,
     KIM::ChargeUnit const requestedChargeUnit,
@@ -108,21 +109,23 @@ DRIP::DRIP(
       ier);
 }
 
+
 //******************************************************************************
 DRIP::~DRIP()
 {
   delete implementation_;
 }
 
+
 //******************************************************************************
 // static member function
-int DRIP::Destroy(KIM::ModelDestroy * const modelDestroy)
+int DRIP::Destroy(KIM::ModelDestroy* const modelDestroy)
 {
-  DRIP * modelObject;
-  modelDestroy->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
+  DRIP* modelObject;
 
-  if (modelObject != NULL)
-  {
+  modelDestroy->GetModelBufferPointer(reinterpret_cast<void**> (&modelObject));
+
+  if (modelObject != NULL) {
     // delete object itself
     delete modelObject;
   }
@@ -131,55 +134,60 @@ int DRIP::Destroy(KIM::ModelDestroy * const modelDestroy)
   return false;
 }
 
+
 //******************************************************************************
 // static member function
 int DRIP::Refresh(
-    KIM::ModelRefresh * const modelRefresh)
+    KIM::ModelRefresh* const modelRefresh)
 {
-  DRIP * modelObject;
+  DRIP* modelObject;
+
   modelRefresh->GetModelBufferPointer(
-      reinterpret_cast<void**>(&modelObject));
+      reinterpret_cast<void**> (&modelObject));
 
   return modelObject->implementation_->Refresh(modelRefresh);
 }
 
+
 //******************************************************************************
 // static member function
 int DRIP::Compute(
-    KIM::ModelCompute const * const modelCompute,
-    KIM::ModelComputeArguments const * const modelComputeArguments)
+    KIM::ModelCompute const* const modelCompute,
+    KIM::ModelComputeArguments const* const modelComputeArguments)
 {
-  DRIP * modelObject;
-  modelCompute->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
+  DRIP* modelObject;
+
+  modelCompute->GetModelBufferPointer(reinterpret_cast<void**> (&modelObject));
 
   return modelObject->implementation_->Compute(modelCompute, modelComputeArguments);
-
 }
+
 
 //******************************************************************************
 // static member function
 int DRIP::ComputeArgumentsCreate(
-    KIM::ModelCompute const * const modelCompute,
-    KIM::ModelComputeArgumentsCreate * const modelComputeArgumentsCreate)
+    KIM::ModelCompute const* const modelCompute,
+    KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate)
 {
-  DRIP * modelObject;
-  modelCompute->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
+  DRIP* modelObject;
+
+  modelCompute->GetModelBufferPointer(reinterpret_cast<void**> (&modelObject));
 
   return modelObject->implementation_
-      ->ComputeArgumentsCreate(modelComputeArgumentsCreate);
+         ->ComputeArgumentsCreate(modelComputeArgumentsCreate);
 }
+
 
 //******************************************************************************
 // static member function
 int DRIP::ComputeArgumentsDestroy(
-    KIM::ModelCompute const * const modelCompute,
-    KIM::ModelComputeArgumentsDestroy * const modelComputeArgumentsDestroy)
+    KIM::ModelCompute const* const modelCompute,
+    KIM::ModelComputeArgumentsDestroy* const modelComputeArgumentsDestroy)
 {
-  DRIP * modelObject;
-  modelCompute->GetModelBufferPointer(reinterpret_cast<void**>(&modelObject));
+  DRIP* modelObject;
+
+  modelCompute->GetModelBufferPointer(reinterpret_cast<void**> (&modelObject));
 
   return modelObject->implementation_
-      ->ComputeArgumentsDestroy(modelComputeArgumentsDestroy);
+         ->ComputeArgumentsDestroy(modelComputeArgumentsDestroy);
 }
-
-

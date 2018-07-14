@@ -24,6 +24,7 @@
 //
 // Contributors:
 //    Mingjian Wen
+//
 
 
 #ifndef DRIP_HPP_
@@ -42,7 +43,7 @@
 extern "C"
 {
 int model_driver_create(
-    KIM::ModelDriverCreate * const modelDriverCreate,
+    KIM::ModelDriverCreate* const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
     KIM::EnergyUnit const requestedEnergyUnit,
     KIM::ChargeUnit const requestedChargeUnit,
@@ -54,7 +55,7 @@ class DRIPImplementation;
 
 class DRIP
 {
- public:
+public:
   DRIP(
       KIM::ModelDriverCreate* const modelDriverCreate,
       KIM::LengthUnit const requestedLengthUnit,
@@ -68,21 +69,20 @@ class DRIP
   // no need to make these "extern" since KIM will only access them
   // via function pointers.  "static" is required so that there is not
   // an implicit this pointer added to the prototype by the C++ compiler
-  static int Destroy(KIM::ModelDestroy * const modelDestroy);
-  static int Refresh(KIM::ModelRefresh * const modelRefresh);
+  static int Destroy(KIM::ModelDestroy* const modelDestroy);
+  static int Refresh(KIM::ModelRefresh* const modelRefresh);
   static int Compute(
-      KIM::ModelCompute const * const modelCompute,
-      KIM::ModelComputeArguments const * const modelComputeArguments);
+      KIM::ModelCompute const* const modelCompute,
+      KIM::ModelComputeArguments const* const modelComputeArguments);
   static int ComputeArgumentsCreate(
-      KIM::ModelCompute const * const modelCompute,
-      KIM::ModelComputeArgumentsCreate * const modelComputeArgumentsCreate);
+      KIM::ModelCompute const* const modelCompute,
+      KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate);
   static int ComputeArgumentsDestroy(
-      KIM::ModelCompute const * const modelCompute,
-      KIM::ModelComputeArgumentsDestroy * const modelComputeArgumentsDestroy);
+      KIM::ModelCompute const* const modelCompute,
+      KIM::ModelComputeArgumentsDestroy* const modelComputeArgumentsDestroy);
 
- private:
+private:
   DRIPImplementation* implementation_;
 };
 
 #endif  // DRIP_HPP_
-

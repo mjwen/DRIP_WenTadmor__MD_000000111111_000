@@ -24,6 +24,7 @@
 //
 // Contributors:
 //    Mingjian Wen
+//
 
 
 #ifndef DRIP_IMPLEMENTATION_HPP_
@@ -540,4 +541,3 @@ int DRIPImplementation::Compute(
 
 
 #endif  // DRIP_IMPLEMENTATION_HPP_
-

@@ -19,23 +19,41 @@
 #
 
 #
-# Copyright (c) 2018, Regents of the University of Minnesota.  All rights reserved.
+# Copyright (c) 2018, Regents of the University of Minnesota.
 #
 # Contributors:
 #    Mingjian Wen
-
-#
-# Release: This file is part of the openkim-api-vX.X.X package.
 #
 
+
+This directory (DRIP_WenTadmor__MD_000000111111_000) contains the
+Dihedral-angle-corrected registry-dependent interlayer potential (DRIP) Model
+Driver.
+
+The DRIP potential provides a description of the interlayer interactions of
+layered materials. See reference 1 for the functional form implemented in this
+Model Driver. To give a full description of the interactions of layered materials,
+it needs to be used together with another potential that provides the intralayer
+descriptions.
+
+This Model Driver reads one parameters file, and its format is as follows:
+
+- Blank lines and lines starting with the `#' character are ignored.
+
+- 1st line: number of atom species (has to be 1 currently)
+
+- 2nd line: species, C0, C2, C4, C, delta, lambda, A, z0, B, eta, rho_cutoff, cutoff
+    species is a valid KIM API particle species string
+    C0, C2, C4, C, A, and B in [eV]
+    delta, z0, eta, rho_cutoff, and cutoff in [Angstrom]
+    lambda in [1/Angstrom]
 
 
 References:
 
-1.
-
-2.
-
+1. M. Wen, S. Carr, S. Fang, E. Kaxiras, and E. B. Tadmor, "Dihedral-angle-corrected
+  registry-dependent interlayer potential for multilayer graphene structures",
+  Phys. Rev. B, submitted.
 
 
 The following files are in this directory:
@@ -49,12 +67,12 @@ Makefile
 README
     This file
 
-RDPImplementation.hpp
-RDPImplementation.cpp
-    RDP potential implementation.
+DRIPImplementation.hpp
+DRIPImplementation.cpp
+    DRIP potential implementation.
 
-RDP.hpp
-RDP.cpp
+DRIP.hpp
+DRIP.cpp
     Wrapper class of implementation.
 
 helper.hpp
