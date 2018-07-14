@@ -968,7 +968,7 @@ int DRIPImplementation::create_layers(
   }
 
   // cutoff to separate atoms into layers (may need to be adjusted)
-  double cutsq_layer = (0.72 * 3.44) * (0.72 * 3.44);
+  double cutsq_layer = (0.75 * 3.35) * (0.75 * 3.35);
 
   // layer contains which atoms
   int* layer;
