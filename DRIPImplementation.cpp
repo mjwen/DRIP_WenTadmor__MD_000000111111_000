@@ -47,7 +47,9 @@
 //==============================================================================
 
 //******************************************************************************
-#include "KIM_ModelDriverCreateLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelDriverCreate
+
 DRIPImplementation::DRIPImplementation(
     KIM::ModelDriverCreate* const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
@@ -72,7 +74,6 @@ DRIPImplementation::DRIPImplementation(
   eta_(NULL),
   influenceDistance_(0.0),
   paddingNeighborHints_(0),
-  halfListHints_(0),
   cutoffSq_2D_(NULL),
   rhocutSq_2D_(NULL),
   C0_2D_(NULL),
@@ -174,6 +175,9 @@ DRIPImplementation::~DRIPImplementation()
 
 
 //******************************************************************************
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelRefresh
+
 int DRIPImplementation::Refresh(KIM::ModelRefresh* const modelRefresh)
 {
   int ier;
@@ -265,6 +269,9 @@ int DRIPImplementation::ComputeArgumentsDestroy(
     KIM::ModelComputeArgumentsDestroy* const modelComputeArgumentsDestroy)
 const
 {
+  // avoid unused warning
+  (void)modelComputeArgumentsDestroy;
+
   int ier;
 
   // nothing else to do for this case
@@ -320,7 +327,9 @@ void DRIPImplementation::AllocateParameterMemory()
 
 
 //******************************************************************************
-#include "KIM_ModelDriverCreateLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelDriverCreate
+
 int DRIPImplementation::OpenParameterFiles(
     KIM::ModelDriverCreate* const modelDriverCreate,
     int const numberParameterFiles,
@@ -364,12 +373,17 @@ int DRIPImplementation::OpenParameterFiles(
 
 
 //******************************************************************************
-#include "KIM_ModelDriverCreateLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelDriverCreate
+
 int DRIPImplementation::ProcessParameterFiles(
     KIM::ModelDriverCreate* const modelDriverCreate,
     int const numberParameterFiles,
     FILE* const parameterFilePointers[MAX_PARAMETER_FILES])
 {
+  // avoid unused warning
+  (void) numberParameterFiles;
+
   int N, ier;
   int numberOfLinesRead;
   int endOfFileFlag = 0;
@@ -522,7 +536,9 @@ void DRIPImplementation::CloseParameterFiles(
 
 
 //******************************************************************************
-#include "KIM_ModelDriverCreateLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelDriverCreate
+
 int DRIPImplementation::ConvertUnits(
     KIM::ModelDriverCreate* const modelDriverCreate,
     KIM::LengthUnit const requestedLengthUnit,
@@ -619,7 +635,9 @@ int DRIPImplementation::RegisterKIMModelSettings(
 
 
 //******************************************************************************
-#include "KIM_ModelComputeArgumentsCreateLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelComputeArgumentsCreate
+
 int DRIPImplementation::RegisterKIMComputeArgumentsSettings(
     KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate) const
 {
@@ -660,7 +678,9 @@ int DRIPImplementation::RegisterKIMComputeArgumentsSettings(
 
 
 //******************************************************************************
-#include "KIM_ModelDriverCreateLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelDriverCreate
+
 int DRIPImplementation::RegisterKIMParameters(
     KIM::ModelDriverCreate* const modelDriverCreate)
 {
@@ -669,29 +689,29 @@ int DRIPImplementation::RegisterKIMParameters(
   // publish parameters (order is important)
   ier =
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, C0_, "C0") ||
+        numberUniqueSpeciesPairs_, C0_, "C0", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, C2_, "C2") ||
+        numberUniqueSpeciesPairs_, C2_, "C2", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, C4_, "C4") ||
+        numberUniqueSpeciesPairs_, C4_, "C4", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, C_, "C") ||
+        numberUniqueSpeciesPairs_, C_, "C", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, delta_, "delta") ||
+        numberUniqueSpeciesPairs_, delta_, "delta", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, lambda_, "lambda") ||
+        numberUniqueSpeciesPairs_, lambda_, "lambda", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, A_, "A") ||
+        numberUniqueSpeciesPairs_, A_, "A", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, z0_, "z0") ||
+        numberUniqueSpeciesPairs_, z0_, "z0", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, B_, "B") ||
+        numberUniqueSpeciesPairs_, B_, "B", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, eta_, "eta") ||
+        numberUniqueSpeciesPairs_, eta_, "eta", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, rhocut_, "rhocut") ||
+        numberUniqueSpeciesPairs_, rhocut_, "rhocut", "1D array with 1 element.") ||
     modelDriverCreate->SetParameterPointer(
-        numberUniqueSpeciesPairs_, cutoff_, "cutoff");
+        numberUniqueSpeciesPairs_, cutoff_, "cutoff", "1D array with 1 element.");
   if (ier) {
     LOG_ERROR("set_parameters");
     return ier;
@@ -714,19 +734,19 @@ const
   error =
     modelDriverCreate->SetDestroyPointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(DRIP::Destroy)) ||
+        (KIM::Function*)&(DRIP::Destroy)) ||
     modelDriverCreate->SetRefreshPointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(DRIP::Refresh)) ||
+        (KIM::Function*)&(DRIP::Refresh)) ||
     modelDriverCreate->SetComputePointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(DRIP::Compute)) ||
+        (KIM::Function*)&(DRIP::Compute)) ||
     modelDriverCreate->SetComputeArgumentsCreatePointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(DRIP::ComputeArgumentsCreate)) ||
+        (KIM::Function*)&(DRIP::ComputeArgumentsCreate)) ||
     modelDriverCreate->SetComputeArgumentsDestroyPointer(
         KIM::LANGUAGE_NAME::cpp,
-        (KIM::func*)&(DRIP::ComputeArgumentsDestroy));
+        (KIM::Function*)&(DRIP::ComputeArgumentsDestroy));
 
 
   return error;
@@ -780,7 +800,7 @@ int DRIPImplementation::SetRefreshMutableValues(
   influenceDistance_ = sqrt(influenceDistance_);
   modelObj->SetInfluenceDistancePointer(&influenceDistance_);
   modelObj->SetNeighborListPointers(1,
-      &influenceDistance_, &paddingNeighborHints_, &halfListHints_);
+      &influenceDistance_, &paddingNeighborHints_);
 
 
   // everything is good
@@ -790,7 +810,9 @@ int DRIPImplementation::SetRefreshMutableValues(
 
 
 //******************************************************************************
-#include "KIM_ModelComputeArgumentsLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelComputeArguments
+
 int DRIPImplementation::SetComputeMutableValues(
     KIM::ModelComputeArguments const* const modelComputeArguments,
     bool& isComputeProcess_dEdr,
@@ -809,6 +831,10 @@ int DRIPImplementation::SetComputeMutableValues(
     VectorOfSizeSix*& virial,
     VectorOfSizeSix*& particleVirial)
 {
+  // avoid unused warning
+  (void) virial;
+  (void) particleVirial;
+
   int ier = true;
 
 
@@ -870,7 +896,9 @@ int DRIPImplementation::SetComputeMutableValues(
 
 //******************************************************************************
 // Assume that the particle species interge code starts from 0
-#include "KIM_ModelComputeLogMacros.hpp"
+#undef  KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelCompute
+
 int DRIPImplementation::CheckParticleSpeciesCodes(
     KIM::ModelCompute const* const modelCompute,
     int const* const particleSpeciesCodes) const
@@ -1142,6 +1170,11 @@ double DRIPImplementation::calc_attractive(
     VectorOfSizeSix virial,
     VectorOfSizeSix* const particleVirial) const
 {
+
+  // avoid unused warning
+  (void) virial;
+  (void) particleVirial;
+
   // compute params
   double const z0 = z0_2D_[iSpecies][jSpecies];
   double const A = A_2D_[iSpecies][jSpecies];
@@ -1188,6 +1221,10 @@ double DRIPImplementation::calc_repulsive(
     VectorOfSizeSix virial,
     VectorOfSizeSix* const particleVirial) const
 {
+  // avoid unused warning
+  (void) virial;
+  (void) particleVirial;
+
   // parameters
   int iSpecies = particleSpeciesCodes[i];
   int jSpecies = particleSpeciesCodes[j];

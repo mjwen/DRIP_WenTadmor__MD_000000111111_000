@@ -32,6 +32,10 @@
 void ProcessVirialTerm(double const dEidr, double const rij,
     double const* const r_ij, int const i, int const j, VectorOfSizeSix virial)
 {
+  // avoid unused warning
+  (void) i;
+  (void) j;
+
   double const v = dEidr / rij;
 
   virial[0] += v * r_ij[0] * r_ij[0];
@@ -47,6 +51,10 @@ void ProcessParticleVirialTerm(double const dEidr, double const rij,
     double const* const r_ij, int const i, int const j,
     VectorOfSizeSix* const particleVirial)
 {
+  // avoid unused warning
+  (void) i;
+  (void) j;
+
   double const v = dEidr / rij;
   VectorOfSizeSix vir;
 
