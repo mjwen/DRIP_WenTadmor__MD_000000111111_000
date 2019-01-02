@@ -64,6 +64,8 @@ public:
   // an implicit this pointer added to the prototype by the C++ compiler
   static int Destroy(KIM::ModelDestroy* const modelDestroy);
   static int Refresh(KIM::ModelRefresh* const modelRefresh);
+  static int WriteParameterizedModel(
+    KIM::ModelWriteParameterizedModel const * const modelWriteParameterizedModel);
   static int Compute(
       KIM::ModelCompute const* const modelCompute,
       KIM::ModelComputeArguments const* const modelComputeArguments);

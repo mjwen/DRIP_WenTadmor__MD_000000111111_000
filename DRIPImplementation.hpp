@@ -80,6 +80,8 @@ public:
       KIM::ModelComputeArgumentsCreate* const modelComputeArgumentsCreate) const;
   int ComputeArgumentsDestroy(
       KIM::ModelComputeArgumentsDestroy* const modelComputeArgumentsDestroy) const;
+  int WriteParameterizedModel(
+      KIM::ModelWriteParameterizedModel const * const modelWriteParameterizedModel) const;
 
 
 private:
@@ -174,6 +176,7 @@ private:
   static void CloseParameterFiles(
       int const numberParameterFiles,
       FILE* const parameterFilePointers[MAX_PARAMETER_FILES]);
+
   int ConvertUnits(
       KIM::ModelDriverCreate* const modelDriverCreate,
       KIM::LengthUnit const requestedLengthUnit,

@@ -150,6 +150,19 @@ int DRIP::Refresh(
 
 //******************************************************************************
 // static member function
+int DRIP::WriteParameterizedModel(
+    KIM::ModelWriteParameterizedModel const * const modelWriteParameterizedModel)
+{
+  DRIP* modelObject;
+
+  modelWriteParameterizedModel->GetModelBufferPointer(reinterpret_cast<void**> (&modelObject));
+
+  return modelObject->implementation_->WriteParameterizedModel(modelWriteParameterizedModel);
+}
+
+
+//******************************************************************************
+// static member function
 int DRIP::Compute(
     KIM::ModelCompute const* const modelCompute,
     KIM::ModelComputeArguments const* const modelComputeArguments)

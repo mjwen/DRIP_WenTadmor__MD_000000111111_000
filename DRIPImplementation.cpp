@@ -534,6 +534,17 @@ void DRIPImplementation::CloseParameterFiles(
   }
 }
 
+int DRIPImplementation::WriteParameterizedModel(
+    KIM::ModelWriteParameterizedModel const * const modelWriteParameterizedModel) const
+{
+    // avoid unused warning
+    (void) modelWriteParameterizedModel;
+
+    //TODO to be implemented
+
+    return 0;
+}
+
 
 //******************************************************************************
 #undef  KIM_LOGGER_OBJECT_NAME
@@ -730,26 +741,51 @@ const
 {
   int error;
 
-  // register the Destroy(), Refresh(), and Compute() functions
-  error =
-    modelDriverCreate->SetDestroyPointer(
-        KIM::LANGUAGE_NAME::cpp,
-        (KIM::Function*)&(DRIP::Destroy)) ||
-    modelDriverCreate->SetRefreshPointer(
-        KIM::LANGUAGE_NAME::cpp,
-        (KIM::Function*)&(DRIP::Refresh)) ||
-    modelDriverCreate->SetComputePointer(
-        KIM::LANGUAGE_NAME::cpp,
-        (KIM::Function*)&(DRIP::Compute)) ||
-    modelDriverCreate->SetComputeArgumentsCreatePointer(
-        KIM::LANGUAGE_NAME::cpp,
-        (KIM::Function*)&(DRIP::ComputeArgumentsCreate)) ||
-    modelDriverCreate->SetComputeArgumentsDestroyPointer(
-        KIM::LANGUAGE_NAME::cpp,
-        (KIM::Function*)&(DRIP::ComputeArgumentsDestroy));
+  // Use function pointer definitions to verify correct prototypes
+  KIM::ModelDestroyFunction * destroy = DRIP::Destroy;
+  KIM::ModelRefreshFunction * refresh = DRIP::Refresh;
+  KIM::ModelComputeFunction * compute = DRIP::Compute;
+  KIM::ModelWriteParameterizedModelFunction * write = DRIP::WriteParameterizedModel;
+
+  KIM::ModelComputeArgumentsCreateFunction * CACreate
+      = DRIP::ComputeArgumentsCreate;
+  KIM::ModelComputeArgumentsDestroyFunction * CADestroy
+      = DRIP::ComputeArgumentsDestroy;
 
 
+  // register functions
+  error = modelDriverCreate->SetRoutinePointer(
+      KIM::MODEL_ROUTINE_NAME::Destroy,
+      KIM::LANGUAGE_NAME::cpp,
+      true,
+      reinterpret_cast<KIM::Function *>(destroy))
+    || modelDriverCreate->SetRoutinePointer(
+        KIM::MODEL_ROUTINE_NAME::Refresh,
+        KIM::LANGUAGE_NAME::cpp,
+        true,
+        reinterpret_cast<KIM::Function *>(refresh))
+    || modelDriverCreate->SetRoutinePointer(
+        KIM::MODEL_ROUTINE_NAME::Compute,
+        KIM::LANGUAGE_NAME::cpp,
+        true,
+        reinterpret_cast<KIM::Function *>(compute))
+    || modelDriverCreate->SetRoutinePointer(
+        KIM::MODEL_ROUTINE_NAME::WriteParameterizedModel,
+        KIM::LANGUAGE_NAME::cpp,
+        true,
+        reinterpret_cast<KIM::Function *>(write))
+    || modelDriverCreate->SetRoutinePointer(
+        KIM::MODEL_ROUTINE_NAME::ComputeArgumentsCreate,
+        KIM::LANGUAGE_NAME::cpp,
+        true,
+        reinterpret_cast<KIM::Function *>(CACreate))
+    || modelDriverCreate->SetRoutinePointer(
+        KIM::MODEL_ROUTINE_NAME::ComputeArgumentsDestroy,
+        KIM::LANGUAGE_NAME::cpp,
+        true,
+        reinterpret_cast<KIM::Function *>(CADestroy));
   return error;
+
 }
 
 
