@@ -772,7 +772,7 @@ const
     || modelDriverCreate->SetRoutinePointer(
         KIM::MODEL_ROUTINE_NAME::WriteParameterizedModel,
         KIM::LANGUAGE_NAME::cpp,
-        true,
+        false,
         reinterpret_cast<KIM::Function *>(write))
     || modelDriverCreate->SetRoutinePointer(
         KIM::MODEL_ROUTINE_NAME::ComputeArgumentsCreate,
