@@ -32,6 +32,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <map>
 
 #include "DRIPImplementation.hpp"
@@ -438,6 +439,7 @@ int DRIPImplementation::ProcessParameterFiles(
     if (iIter == modelSpeciesMap.end()) {
       modelSpeciesMap[specName1] = index;
       modelSpeciesCodeList_.push_back(index);
+      modelSpeciesStringList_.push_back(spec1);
 
       ier = modelDriverCreate->SetSpeciesCode(specName1, index);
       if (ier) {
@@ -534,15 +536,63 @@ void DRIPImplementation::CloseParameterFiles(
   }
 }
 
+#undef KIM_LOGGER_OBJECT_NAME
+#define KIM_LOGGER_OBJECT_NAME modelWriteParameterizedModel
 int DRIPImplementation::WriteParameterizedModel(
     KIM::ModelWriteParameterizedModel const * const modelWriteParameterizedModel) const
 {
-    // avoid unused warning
-    (void) modelWriteParameterizedModel;
 
-    //TODO to be implemented
+  std::string buffer;
+  std::string const * path;
+  std::string const * modelName;
 
-    return 0;
+  modelWriteParameterizedModel->GetPath(&path);
+  modelWriteParameterizedModel->GetModelName(&modelName);
+
+  buffer = *modelName + ".params";
+  modelWriteParameterizedModel->SetParameterFileName(buffer);
+
+  buffer = *path + "/" + *modelName + ".params";
+  std::ofstream fp(buffer.c_str());
+  if (!fp.is_open()) {
+    LOG_ERROR("Unable to open parameter file for writing.");
+    return true;
+  }
+
+  // number of species
+  fp<< numberModelSpecies_<<std::endl;
+
+  int indx = 0;
+  fp << modelSpeciesStringList_[indx] << " "
+     << C0_[indx] << " "
+     << C2_[indx] << " "
+     << C4_[indx] << " "
+     << C_[indx] << " "
+     << delta_[indx] << " "
+     << lambda_[indx] << " "
+     << A_[indx] << " "
+     << z0_[indx] << " "
+     << B_[indx] << " "
+     << eta_[indx] << " "
+     << rhocut_[indx] << " "
+     << cutoff_[indx] << std::endl;
+
+  fp <<"\n\n# format of input\n"
+     <<"# 1st line: number of atom species\n"
+     <<"# 2nd line: Species, C0, C2, C4, C, delta, lambda, A, z0, B, eta, rho_cutoff, cutoff\n"
+     <<"#    species is a valid KIM API particle species string\n"
+     <<"#    C0, C2, C4, C, A, and B in [eV]\n"
+     <<"#    delta, z0, eta, rho_cutoff, and cutoff in [Angstrom]\n"
+     <<"#    lambda in [1/Angstrom]\n\n"
+     <<"# The parameters are taken from the following reference:\n"
+     <<"# M. Wen, S. Carr, S. Fang, E. Kaxiras, and E. B. Tadmor, Dihedral-angle-corrected\n"
+     <<"# registry-dependent interlayer potential for multilayer graphene structures\n,"
+     <<"# Phys. Rev. B, 98, 235404 (2018)."
+     <<"#\n";
+
+  fp.close();
+
+  return false;
 }
 
 
